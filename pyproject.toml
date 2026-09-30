@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Antonio Olleros", email = "antonio.olleros@meaningfuldata.eu" }]
-keywords = ["markdown", "docx", "pdf", "converter", "export", "mermaid"]
+keywords = ["markdown", "docx", "pdf", "converter", "export", "mermaid", "mkdocs", "template"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
@@ -28,6 +28,9 @@ dependencies = [
     # svglib 1.6 added rlpycairo -> pycairo (needs native cairo). Pin below that so
     # xhtml2pdf's dependency tree stays pure-Python / no native libraries.
     "svglib<1.6",
+    # mkdocs.yml and front matter (DOCX template placeholders). Pure-Python
+    # fallback; the optional C speedup is not required.
+    "PyYAML>=5.1",
 ]
 
 [project.optional-dependencies]

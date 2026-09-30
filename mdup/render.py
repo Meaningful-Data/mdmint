@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 import re
+import unicodedata
 from pathlib import Path
 
 from markdown_it import MarkdownIt
@@ -23,6 +24,63 @@ from mdit_py_plugins.tasklists import tasklists_plugin
 from . import admonitions, mathrender, mermaid
 
 _TOC_MARKER = re.compile(r"<p>\[\[?TOC\]\]?</p>", re.IGNORECASE)
+
+# Trailing attr_list on a heading, python-markdown / mkdocs style:
+# ``# Title {#custom-id .part}`` or ``# Title {: .appendix }``.
+_HEADING_ATTRS = re.compile(r"\s*\{:?\s*((?:[#.][\w-]+\s*)+)\}\s*$")
+
+
+def slugify(title: str) -> str:
+    """Heading id slug compatible with mkdocs' default ``toc`` slugify.
+
+    Matching mkdocs matters because docs written for it link to headings by these
+    ids (``page.md#2-the-maintenance-case``). Non-ASCII is folded away as mkdocs
+    does; a heading with nothing ASCII left keeps its Unicode word characters so it
+    still gets a usable id.
+    """
+    ascii_ = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
+    for value in (ascii_, title):
+        value = re.sub(r"[^\w\s-]", "", value).strip().lower()
+        value = re.sub(r"[-\s]+", "-", value)
+        if value:
+            return value
+    return "section"
+
+
+def _heading_attrs_strip(state) -> None:
+    """Core rule (before anchors): strip a trailing ``{#id .class}`` from headings.
+
+    The attrs are parked in ``token.meta`` so the slug is computed from the clean
+    title, then re-applied by :func:`_heading_attrs_apply` after the anchors rule
+    (which would otherwise overwrite a custom id).
+    """
+    tokens = state.tokens
+    for i, tok in enumerate(tokens):
+        if tok.type != "heading_open" or i + 1 >= len(tokens):
+            continue
+        inline = tokens[i + 1]
+        last = inline.children[-1] if inline.children else None
+        if last is None or last.type != "text":
+            continue
+        m = _HEADING_ATTRS.search(last.content)
+        if not m:
+            continue
+        last.content = last.content[: m.start()]
+        inline.content = _HEADING_ATTRS.sub("", inline.content)
+        parts = m.group(1).split()
+        tok.meta = dict(tok.meta or {})
+        tok.meta["attr_id"] = next((p[1:] for p in parts if p.startswith("#")), None)
+        tok.meta["attr_classes"] = [p[1:] for p in parts if p.startswith(".")]
+
+
+def _heading_attrs_apply(state) -> None:
+    for tok in state.tokens:
+        if tok.type != "heading_open" or not tok.meta:
+            continue
+        if tok.meta.get("attr_id"):
+            tok.attrSet("id", tok.meta["attr_id"])
+        if tok.meta.get("attr_classes"):
+            tok.attrSet("class", " ".join(tok.meta["attr_classes"]))
 
 
 def _math_inline(tokens, idx, options, env):
@@ -87,10 +145,12 @@ def _build_md() -> MarkdownIt:
         .use(front_matter_plugin)        # strip YAML front-matter from output
         .use(footnote_plugin)
         .use(tasklists_plugin, enabled=True)
-        .use(anchors_plugin, max_level=6, permalink=False)
+        .use(anchors_plugin, max_level=6, permalink=False, slug_func=slugify)
         .use(dollarmath_plugin, double_inline=True)
         .use(admon_plugin)               # !!! note / ??? collapsible callouts
     )
+    md.core.ruler.before("anchor", "heading_attrs_strip", _heading_attrs_strip)
+    md.core.ruler.after("anchor", "heading_attrs_apply", _heading_attrs_apply)
 
     # Route mermaid fenced blocks through the optional renderer; everything else
     # uses the default fence rule.
@@ -192,6 +252,42 @@ def prefix_anchors(body: str, headings, prefix: str):
 
         body = re.sub(r'(\bid=")([^"]*)(")', repl, body)
     return body, new_headings
+
+
+_HEADING_TAG = re.compile(r"<(/?)h([1-6])(?=[\s>])", re.IGNORECASE)
+_HEADING_HTML = re.compile(
+    r"<h([1-6])\b([^>]*)>(.*?)</h\1>", re.IGNORECASE | re.DOTALL
+)
+_ID_ATTR = re.compile(r'\bid="([^"]*)"')
+
+
+def shift_headings(body: str, offset: int) -> str:
+    """Demote every heading in *body* by *offset* levels (capped at ``h6``)."""
+    if not offset:
+        return body
+    return _HEADING_TAG.sub(
+        lambda m: f"<{m.group(1)}h{min(6, int(m.group(2)) + offset)}", body
+    )
+
+
+def namespace_ids(body: str, prefix: str) -> str:
+    """Prefix *every* ``id`` and in-page ``href="#..."`` in *body*.
+
+    Unlike :func:`prefix_anchors` (headings only), this also covers footnotes, so
+    several documents stitched into one keep their footnote links apart.
+    """
+    body = re.sub(r'(\bid=")([^"]*)(")', lambda m: f"{m.group(1)}{prefix}{m.group(2)}{m.group(3)}", body)
+    return re.sub(r'(\bhref="#)([^"]+)(")', lambda m: f"{m.group(1)}{prefix}{m.group(2)}{m.group(3)}", body)
+
+
+def headings_from_html(body: str):
+    """Return (level, text, anchor_id) for every heading in an HTML fragment."""
+    out = []
+    for m in _HEADING_HTML.finditer(body):
+        idm = _ID_ATTR.search(m.group(2))
+        text = html.unescape(re.sub(r"<[^>]+>", "", m.group(3))).strip()
+        out.append((int(m.group(1)), text, idm.group(1) if idm else None))
+    return out
 
 
 def parse(md_text: str, *, work_dir: Path):

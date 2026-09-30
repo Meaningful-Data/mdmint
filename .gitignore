@@ -6,3 +6,5 @@ dist/
 .venv/
 .pytest_cache/
 .claude/
+templates/
+out/

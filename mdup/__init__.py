@@ -9,9 +9,10 @@ Public API
     from mdup import convert, MarkdownConverter
 
     convert(["doc.md"], formats=["pdf", "docx"], output="out/")
+    convert_mkdocs("mkdocs.yml", formats=["docx"], template="brand.docx")
 """
 
-from .core import MarkdownConverter, convert
+from .core import MarkdownConverter, convert, convert_mkdocs
 
 __version__ = "0.1.0"
-__all__ = ["MarkdownConverter", "convert", "__version__"]
+__all__ = ["MarkdownConverter", "convert", "convert_mkdocs", "__version__"]

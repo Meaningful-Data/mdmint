@@ -157,8 +157,21 @@ def _flatten_loose_list_items(body: str) -> str:
     return str(soup)
 
 
-def to_docx(body: str, out_path: str | os.PathLike) -> None:
-    """Write *body* (an HTML fragment) to a .docx file."""
+def to_docx(body: str, out_path: str | os.PathLike, *, template=None,
+            meta: dict | None = None, styles: dict | None = None) -> None:
+    """Write *body* (an HTML fragment) to a .docx file.
+
+    With a *template* (.docx/.dotx) the template-aware writer in
+    :mod:`mdup.docxtemplate` is used instead of htmldocx, so the output carries the
+    template's cover, headers/footers and named styles (*meta* fills its
+    ``{{PLACEHOLDERS}}``, *styles* overrides role → style-name choices).
+    """
+    if template is not None:
+        from . import docxtemplate
+
+        docxtemplate.to_docx(body, out_path, template, meta=meta, styles=styles)
+        return
+
     from docx import Document
     from htmldocx import HtmlToDocx
 

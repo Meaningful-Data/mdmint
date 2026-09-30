@@ -115,3 +115,8 @@ table.admonition td.admonition-cell {
 
 /* Page break inserted between merged documents */
 .mdup-page-break { page-break-before: always; }
+
+/* Part dividers (top-level mkdocs nav sections, or `# Title {.part}`) and
+   appendix chapters (`{.appendix}` / pages under an "Annexes" section). */
+h1.part { page-break-before: always; font-size: 28pt; border-bottom: none; margin-top: 30%; }
+h1.appendix { page-break-before: always; }

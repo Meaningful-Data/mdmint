@@ -8,6 +8,7 @@ import sys
 
 from . import __version__
 from .core import VALID_FORMATS, MarkdownConverter
+from .mkdocs import SECTION_STYLES
 
 
 def _parse_formats(value: str) -> list:
@@ -22,6 +23,13 @@ def _parse_formats(value: str) -> list:
     return fmts
 
 
+def _key_value(value: str) -> tuple:
+    key, sep, val = value.partition("=")
+    if not sep or not key.strip():
+        raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got {value!r}")
+    return key.strip(), val.strip()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mdup",
@@ -33,9 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
             "  mdup notes.md -f docx,pdf -o out/     # both formats into out/\n"
             "  mdup a.md b.md --merge -o book.pdf    # one merged PDF\n"
             "  mdup a.md b.md -f docx                # a.docx and b.docx\n"
+            "  mdup --mkdocs mkdocs.yml -f docx --template brand.docx -o out/\n"
+            "                                        # one branded DOCX from the nav\n"
         ),
     )
-    parser.add_argument("inputs", nargs="+", metavar="INPUT", help="Markdown file(s)")
+    parser.add_argument("inputs", nargs="*", metavar="INPUT", help="Markdown file(s)")
     parser.add_argument(
         "-f", "--format", dest="formats", type=_parse_formats, default=["pdf"],
         metavar="FMT[,FMT]",
@@ -54,6 +64,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="insert a table of contents (or honour a [TOC] marker)",
     )
     parser.add_argument(
+        "--mkdocs", metavar="MKDOCS_YML", default=None,
+        help="build one document from an mkdocs config's nav (instead of INPUTs)",
+    )
+    parser.add_argument(
+        "--section-style", choices=SECTION_STYLES, default=None,
+        help="with --mkdocs: top-level nav sections become part dividers (part, "
+             "default) or every section is a heading above its pages (heading)",
+    )
+    parser.add_argument(
+        "--template", metavar="DOCX", default=None,
+        help="Word template (.docx/.dotx) for DOCX output: its cover, headers, "
+             "footers and styles are used",
+    )
+    parser.add_argument(
+        "--meta", metavar="KEY=VALUE", type=_key_value, action="append", default=[],
+        help="value for a template {{KEY}} placeholder (repeatable); overrides "
+             "front matter / mkdocs.yml",
+    )
+    parser.add_argument(
+        "--style", metavar="ROLE=STYLE", type=_key_value, action="append", default=[],
+        help="use template style STYLE for ROLE, e.g. code='My Code' (repeatable)",
+    )
+    parser.add_argument(
         "--pdf-backend", choices=("xhtml2pdf", "weasyprint"), default="xhtml2pdf",
         help="PDF engine. xhtml2pdf (default, pure-Python) or weasyprint (extra).",
     )
@@ -63,7 +96,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.mkdocs and args.inputs:
+        parser.error("give either INPUT files or --mkdocs, not both")
+    if not args.mkdocs and not args.inputs:
+        parser.error("no INPUT files given (or use --mkdocs MKDOCS_YML)")
+    if args.section_style and not args.mkdocs:
+        parser.error("--section-style only applies with --mkdocs")
     logging.basicConfig(
         level=logging.INFO if args.verbose else logging.WARNING,
         format="%(levelname)s: %(message)s",
@@ -74,8 +114,15 @@ def main(argv=None) -> int:
             pdf_backend=args.pdf_backend,
             merge=args.merge,
             toc=args.toc,
+            template=args.template,
+            meta=dict(args.meta),
+            styles=dict(args.style),
+            section_style=args.section_style,
         )
-        written = converter.convert(args.inputs, output=args.output)
+        if args.mkdocs:
+            written = converter.convert_mkdocs(args.mkdocs, output=args.output)
+        else:
+            written = converter.convert(args.inputs, output=args.output)
     except (ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
