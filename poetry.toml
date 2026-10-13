@@ -1,0 +1,7 @@
+[installer]
+# poetry.lock holds two versions of numpy, matplotlib, contourpy, fonttools and
+# soupsieve (their latest releases dropped Python 3.10), and Poetry 2.5 writes
+# overlapping markers for them on Python 3.13+ (triggered by the weasyprint extra).
+# Installing straight from those markers puts both versions into the environment;
+# re-resolving against the lock picks one per environment.
+re-resolve = true
