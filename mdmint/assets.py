@@ -22,7 +22,7 @@ import re
 import urllib.request
 from pathlib import Path
 
-log = logging.getLogger("mdup")
+log = logging.getLogger("mdmint")
 
 # Matches the src attribute of an <img> tag, capturing the quote and the value.
 _IMG_SRC = re.compile(r'(<img\b[^>]*?\ssrc=)(["\'])(.*?)\2', re.IGNORECASE)
@@ -39,7 +39,7 @@ _EXT_BY_TYPE = {
 def _download(url: str, work_dir: Path) -> str | None:
     digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "mdup"})
+        req = urllib.request.Request(url, headers={"User-Agent": "mdmint"})
         with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (user-provided URL)
             data = resp.read()
             ctype = resp.headers.get_content_type()

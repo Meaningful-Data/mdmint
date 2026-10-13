@@ -1,7 +1,7 @@
 ---
 title: Template Specimen
-subtitle: Every construct mdup styles, for checking a Word template
-author: mdup
+subtitle: Every construct mdmint styles, for checking a Word template
+author: mdmint
 status: Draft
 confidentiality: Internal
 ---

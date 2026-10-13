@@ -1,12 +1,12 @@
-# Authoring a Word template for mdup
+# Authoring a Word template for mdmint
 
-`mdup --template brand.docx` writes DOCX output *into a copy of* `brand.docx`.
+`mdmint --template brand.docx` writes DOCX output *into a copy of* `brand.docx`.
 Everything visual — fonts, colours, spacing, cover, headers, footers, page
-setup — comes from the template. mdup only decides **which named style** each
+setup — comes from the template. mdmint only decides **which named style** each
 piece of content gets. A good template is therefore mostly a well-built set of
 styles.
 
-This guide covers what mdup reads from a template, which style names it looks
+This guide covers what mdmint reads from a template, which style names it looks
 for, and how to check the result. The Meaningful Data template in
 `templates/word-template/` follows every recommendation here and is a good model.
 
@@ -68,7 +68,7 @@ It just looks plain.
   header: logo            footer: {{TITLE}} · {{DATE}} · page X / Y
 ```
 
-- **Keep the cover and contents in the body.** mdup never deletes what is in
+- **Keep the cover and contents in the body.** mdmint never deletes what is in
   the template. It adds content after it.
 - **Use section breaks** to give the cover different headers/footers and
   numbering from the rest. Content is added to the **last** section, so that
@@ -90,17 +90,17 @@ a text box, or in any header/footer is replaced with the metadata value `name`
 | `{{SUBTITLE}}` | mkdocs `site_description` → front matter → `--meta` |
 | `{{AUTHOR}}` | mkdocs `site_author` → front matter → `--meta` |
 | `{{DATE}}` | front matter → `--meta`. Defaults to the current month, e.g. "September 2026" |
-| anything else, e.g. `{{STATUS}}`, `{{CONFIDENTIALITY}}`, `{{CLIENT}}` | mkdocs `extra: mdup:` → front matter → `--meta` |
+| anything else, e.g. `{{STATUS}}`, `{{CONFIDENTIALITY}}`, `{{CLIENT}}` | mkdocs `extra: mdmint:` → front matter → `--meta` |
 
 - You can invent any placeholder name. It just needs a value from one of the
   sources.
-- Placeholders with no value are **blanked**, and mdup prints a warning naming
+- Placeholders with no value are **blanked**, and mdmint prints a warning naming
   them.
 - `title`, `author` and `subtitle` also set the document properties (File →
   Info), which Word can show via `TITLE`/`AUTHOR` fields.
 
 **Type each placeholder in one go.** Word sometimes splits text into several
-runs (after spell-check, autocorrect or partial formatting). mdup still finds a
+runs (after spell-check, autocorrect or partial formatting). mdmint still finds a
 split placeholder, but the *whole paragraph* then takes the formatting of its
 first run. If the text of a placeholder line has mixed formatting, retype the
 placeholder, or format the whole paragraph with a paragraph style instead of
@@ -118,7 +118,7 @@ direct formatting.
 
 ## Style reference
 
-mdup looks for each role's styles **in order** and uses the first one the
+mdmint looks for each role's styles **in order** and uses the first one the
 template defines. Names are matched case-insensitively and are the names shown
 in Word's Styles pane.
 
@@ -144,9 +144,9 @@ in Word's Styles pane.
 | `hyperlink` | `Hyperlink` | char | Links (else blue, underlined) |
 | `footnote_text` | `Footnote Text` → `Reference` (else created) | ¶ | Footnote bodies |
 | `footnote_ref` | `Footnote Reference` → `Reference Mark` (else created) | char | Footnote numbers, in text and in the note |
-| `toc_heading` | `TOC Heading` | ¶ | Only if mdup inserts a TOC itself (see below) |
+| `toc_heading` | `TOC Heading` | ¶ | Only if mdmint inserts a TOC itself (see below) |
 
-Direct formatting that mdup adds on top of styles is kept minimal: **bold**,
+Direct formatting that mdmint adds on top of styles is kept minimal: **bold**,
 *italic*, ~~strike~~, super/subscript from the Markdown, left indents for list
 continuation and code inside lists, 12 pt space before the paragraph that
 follows a table, and 9 pt after the last item of a list.
@@ -167,12 +167,12 @@ from **Word numbering linked to the style**, not typed characters.
 2. Link level 1 of that list to the `List Bullet` style (and a second list to
    `List Number`).
 
-mdup reads the numbering from the style. It uses level 2 and 3 of the *same*
+mdmint reads the numbering from the style. It uses level 2 and 3 of the *same*
 list for nested items, and gives **every numbered list its own instance**, so
 each list restarts at 1 (or at the Markdown start number, e.g. `3.`).
 
 **Also supported: Word's stock layout**, where `List Bullet`, `List Bullet 2`,
-`List Bullet 3` each have their own single-level numbering. mdup then uses
+`List Bullet 3` each have their own single-level numbering. mdmint then uses
 `List Bullet 2` for the second level, and so on. With this layout, nested
 numbered lists do not restart.
 
@@ -186,7 +186,7 @@ Continuation paragraphs (a second paragraph in the same item) use
   them. Keep `Heading 1` = level 1, etc. Give `Part Title` and
   `Appendix Heading` outline level 1 too, if they should appear in the TOC.
 - **Page breaks:** set *Page break before* on `Heading 1` (and `Part Title`) if
-  chapters should start on a new page. mdup does not add breaks around
+  chapters should start on a new page. mdmint does not add breaks around
   headings itself.
 - **Part Title** is used for top-level mkdocs nav sections
   (`--section-style part`) and for `# Title {.part}`. It is typically a divider
@@ -200,17 +200,17 @@ Continuation paragraphs (a second paragraph in the same item) use
 
 ## Tables
 
-- Create a **custom table style** (Table Design → New Table Style). mdup uses
+- Create a **custom table style** (Table Design → New Table Style). mdmint uses
   the first table style in the template that is not one of Word's stock ones.
   Delete stray custom table styles, or pin one with `--style table="Brand Table"`.
-- mdup turns on the style's **Header row**, **First column** and **Banded
+- mdmint turns on the style's **Header row**, **First column** and **Banded
   rows** options. Define *Header Row* conditional formatting (shading, bold,
   bottom border) and leave *First Column* unformatted unless you want it.
 - The Markdown header row is marked "repeat as header row" on every page.
 - Cell paragraphs use `Table Heading` / `Table Text`. Make these compact
   (spacing 0, slightly smaller than body text), because `Normal` spacing makes
   tables airy.
-- Tables span the full text width. mdup sizes columns from their content.
+- Tables span the full text width. mdmint sizes columns from their content.
   Column alignment from Markdown (`|--:|`) is applied.
 
 ## Callouts
@@ -247,23 +247,23 @@ Markdown footnotes (`[^1]`) become real Word footnotes.
 
 - With a `Footnote Text` style, the note reads `¹ text`.
 - If your footnote style defines a **tab stop** (e.g. hanging indent 0.24" with
-  a tab at 0.24"), mdup puts a tab between the number and the text instead:
+  a tab at 0.24"), mdmint puts a tab between the number and the text instead:
   `1⇥text`. This gives aligned, hanging notes.
 - If neither `Footnote Text`/`Reference` nor `Footnote Reference`/
-  `Reference Mark` exists, mdup creates minimal ones (9 pt text, superscript
+  `Reference Mark` exists, mdmint creates minimal ones (9 pt text, superscript
   reference).
 
 ## Table of contents and fields
 
 - Put a **TOC field** on your contents page (References → Table of Contents, or
   a field `TOC \o "1-2" \h \z \u`). The `\o "1-2"` range controls the depth.
-- mdup never builds the contents list itself. Word fills it when fields are
-  updated. mdup switches on *update fields on open* whenever a TOC is present,
+- mdmint never builds the contents list itself. Word fills it when fields are
+  updated. mdmint switches on *update fields on open* whenever a TOC is present,
   so Word asks to update when the file opens (answer Yes). In LibreOffice, use
   Tools → Update → Update All.
 - `PAGE`, `NUMPAGES`, `SECTIONPAGES` fields in headers/footers work as usual.
   Their cached values are stale until Word updates them.
-- With `--toc`, if the template has **no** TOC field, mdup inserts one (with a
+- With `--toc`, if the template has **no** TOC field, mdmint inserts one (with a
   `TOC Heading` "Contents" title) where the content starts.
 
 ## Overriding style choices
@@ -272,7 +272,7 @@ If your template uses different names, map roles to styles without renaming
 anything:
 
 ```bash
-mdup report.md -f docx --template brand.docx \
+mdmint report.md -f docx --template brand.docx \
   --style code="Brand Code" --style note="Brand Info Box" --style table="Brand Grid"
 ```
 
@@ -280,7 +280,7 @@ or, for an mkdocs project, in `mkdocs.yml`:
 
 ```yaml
 extra:
-  mdup:
+  mdmint:
     template: templates/brand.docx
     styles:
       code: Brand Code
@@ -293,16 +293,16 @@ reported and ignored.
 
 ## Testing a template
 
-[`template-specimen.md`](template-specimen.md) uses every construct mdup
+[`template-specimen.md`](template-specimen.md) uses every construct mdmint
 styles. Render it with your template and page through the result:
 
 ```bash
-mdup docs/template-specimen.md -f docx --template brand.docx -o /tmp/specimen.docx
+mdmint docs/template-specimen.md -f docx --template brand.docx -o /tmp/specimen.docx
 ```
 
 Check that:
 
-1. The cover shows no leftover `{{…}}`, and mdup printed no "no value for"
+1. The cover shows no leftover `{{…}}`, and mdmint printed no "no value for"
    warning you didn't expect.
 2. Content starts on a new page after the contents page.
 3. Nested bullets and numbers show three distinct levels, and the second

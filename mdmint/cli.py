@@ -1,4 +1,4 @@
-"""Command-line interface for mdup."""
+"""Command-line interface for mdmint."""
 
 from __future__ import annotations
 
@@ -32,17 +32,17 @@ def _key_value(value: str) -> tuple:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="mdup",
+        prog="mdmint",
         description="Export Markdown file(s) to DOCX and/or PDF.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
-            "  mdup notes.md                         # -> notes.pdf\n"
-            "  mdup notes.md -f docx,pdf -o out/     # both formats into out/\n"
-            "  mdup a.md b.md --merge -o book.pdf    # one merged PDF\n"
-            "  mdup a.md b.md -f docx                # a.docx and b.docx\n"
-            "  mdup --mkdocs mkdocs.yml -f docx --template brand.docx -o out/\n"
-            "                                        # one branded DOCX from the nav\n"
+            "  mdmint notes.md                         # -> notes.pdf\n"
+            "  mdmint notes.md -f docx,pdf -o out/     # both formats into out/\n"
+            "  mdmint a.md b.md --merge -o book.pdf    # one merged PDF\n"
+            "  mdmint a.md b.md -f docx                # a.docx and b.docx\n"
+            "  mdmint --mkdocs mkdocs.yml -f docx --template brand.docx -o out/\n"
+            "                                          # one branded DOCX from the nav\n"
         ),
     )
     parser.add_argument("inputs", nargs="*", metavar="INPUT", help="Markdown file(s)")
@@ -91,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="PDF engine. xhtml2pdf (default, pure-Python) or weasyprint (extra).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose logging")
-    parser.add_argument("--version", action="version", version=f"mdup {__version__}")
+    parser.add_argument("--version", action="version", version=f"mdmint {__version__}")
     return parser
 
 

@@ -47,7 +47,7 @@ from docx.text.paragraph import Paragraph
 
 from . import admonitions
 
-log = logging.getLogger("mdup")
+log = logging.getLogger("mdmint")
 
 # role -> candidate style names, first match in the template wins.
 _ROLES = {
@@ -355,13 +355,13 @@ class TemplateWriter:
         soup = BeautifulSoup(html_body, "html.parser")
         for c in soup.find_all(string=lambda s: isinstance(s, Comment)):
             if "pagebreak" in c.replace("-", "").replace("_", "").lower():
-                c.replace_with(soup.new_tag("div", attrs={"class": "mdup-page-break"}))
+                c.replace_with(soup.new_tag("div", attrs={"class": "mdmint-page-break"}))
             else:
                 c.extract()
         self._collect_footnotes(soup)
         for i, h in enumerate(soup.find_all(re.compile(r"^h[1-6]$"))):
             if h.get("id"):
-                self.bookmarks.setdefault(h["id"], f"_mdup{i}")
+                self.bookmarks.setdefault(h["id"], f"_mdmint{i}")
         self.blocks(soup)
 
     def _collect_footnotes(self, soup) -> None:
@@ -519,7 +519,7 @@ class TemplateWriter:
             self.rule()
         elif name == "nav" and "toc" in cls:
             self.toc()
-        elif name == "div" and "mdup-page-break" in cls:
+        elif name == "div" and "mdmint-page-break" in cls:
             self.pending_break = True
         elif name == "img":
             self.figure(node)

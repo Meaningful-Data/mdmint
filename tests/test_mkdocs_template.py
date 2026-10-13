@@ -8,8 +8,8 @@ from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.ns import qn
 
-from mdup import convert, convert_mkdocs, mkdocs, render
-from mdup.cli import main
+from mdmint import convert, convert_mkdocs, mkdocs, render
+from mdmint.cli import main
 
 MKDOCS_YML = """\
 site_name: Demo Report
@@ -21,7 +21,7 @@ markdown_extensions:
         - name: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
 extra:
-  mdup:
+  mdmint:
     status: Draft
 nav:
   - Home: index.md
@@ -157,7 +157,7 @@ def test_template_docx_from_mkdocs(project, tmp_path, caplog):
     assert out == [tmp_path / "out" / "Demo_Report.docx"]
     doc = Document(out[0])
     texts = [p.text for p in doc.paragraphs]
-    assert texts[0] == "Demo Report / Final / "        # CLI meta beats extra.mdup
+    assert texts[0] == "Demo Report / Final / "        # CLI meta beats extra.mdmint
     assert "{{MISSING}}" in caplog.text
 
     styles = {p.text: p.style.name for p in doc.paragraphs}

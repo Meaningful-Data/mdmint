@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mdup"
+name = "mdmint"
 version = "0.1.0"
 description = "Export Markdown files to DOCX and/or PDF. Pure-Python, cross-platform, minimal dependencies."
 readme = "README.md"
@@ -42,13 +42,13 @@ all = ["weasyprint>=60", "matplotlib>=3.5"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-mdup = "mdup.cli:main"
+mdmint = "mdmint.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/meaningfuldata/mdup"
+Homepage = "https://github.com/Meaningful-Data/mdmint"
 
 [tool.setuptools]
-packages = ["mdup"]
+packages = ["mdmint"]
 
 [tool.setuptools.package-data]
-mdup = ["resources/*.css"]
+mdmint = ["resources/*.css"]

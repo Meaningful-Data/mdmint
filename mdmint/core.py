@@ -14,13 +14,13 @@ from pathlib import Path
 
 from . import assets, backends, render
 
-log = logging.getLogger("mdup")
+log = logging.getLogger("mdmint")
 
 VALID_FORMATS = ("pdf", "docx")
 _EXT = {"pdf": ".pdf", "docx": ".docx"}
 
 # Page break inserted between documents in a merged output.
-_PAGE_BREAK = '\n<div class="mdup-page-break"></div>\n'
+_PAGE_BREAK = '\n<div class="mdmint-page-break"></div>\n'
 
 _FRONT_MATTER = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|\Z)", re.DOTALL)
 
@@ -74,10 +74,10 @@ def _make_work_dir() -> Path:
 
     if mermaid.is_snap_confined():
         try:
-            return Path(tempfile.mkdtemp(prefix="mdup-", dir=Path.home()))
+            return Path(tempfile.mkdtemp(prefix="mdmint-", dir=Path.home()))
         except OSError:
             pass
-    return Path(tempfile.mkdtemp(prefix="mdup-"))
+    return Path(tempfile.mkdtemp(prefix="mdmint-"))
 
 
 def _is_dir_like(path: Path) -> bool:
@@ -207,7 +207,7 @@ class MarkdownConverter:
         """Build one document per format from an mkdocs project's ``nav``.
 
         Pages are stitched in nav order with sections as headings (see
-        :mod:`mdup.mkdocs`). ``extra: mdup:`` in the config may set ``template``,
+        :mod:`mdmint.mkdocs`). ``extra: mdmint:`` in the config may set ``template``,
         ``section_style``, ``styles`` and placeholder values; explicit arguments to
         this converter win over it.
         """

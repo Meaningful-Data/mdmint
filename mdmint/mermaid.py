@@ -3,7 +3,7 @@
 There is no pure-Python Mermaid renderer. If the mermaid CLI (``mmdc``, from
 ``@mermaid-js/mermaid-cli``) happens to be installed and on PATH, we shell out to
 it and embed the resulting image. Otherwise we emit the diagram source as a styled
-code block and warn once. ``mmdc`` is never required to install or use mdup.
+code block and warn once. ``mmdc`` is never required to install or use mdmint.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-log = logging.getLogger("mdup")
+log = logging.getLogger("mdmint")
 
 _MMDC_PATH = None  # cached result of the PATH lookup (False once we know it's absent)
 _WARNED = False
@@ -45,7 +45,7 @@ def is_snap_confined() -> bool:
 
     Snap strict confinement cannot read ``/tmp`` or hidden dot-directories, so when
     rendering with a snap mmdc the work directory must live in a non-hidden path
-    under the user's home (handled by :func:`mdup.core._make_work_dir`).
+    under the user's home (handled by :func:`mdmint.core._make_work_dir`).
     """
     mmdc = _find_mmdc()
     return bool(mmdc and "/snap/" in mmdc.replace("\\", "/"))
