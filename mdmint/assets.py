@@ -75,7 +75,7 @@ def _resolve_one(src: str, base_dir: Path, work_dir: Path) -> str:
 def resolve_images(html_body: str, base_dir: Path, work_dir: Path) -> str:
     """Rewrite every ``<img src>`` in *html_body* to an absolute local path."""
 
-    def repl(m: re.Match) -> str:
+    def repl(m: re.Match[str]) -> str:
         prefix, quote, src = m.group(1), m.group(2), m.group(3)
         resolved = _resolve_one(src.strip(), base_dir, work_dir)
         # Keep the original quote style; the path itself contains no quote chars.

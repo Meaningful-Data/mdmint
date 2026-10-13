@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections.abc import Sequence
 
 from . import __version__
 from .core import VALID_FORMATS, MarkdownConverter
 from .mkdocs import SECTION_STYLES
 
 
-def _parse_formats(value: str) -> list:
+def _parse_formats(value: str) -> list[str]:
     fmts = [f.strip().lower() for f in value.split(",") if f.strip()]
     bad = [f for f in fmts if f not in VALID_FORMATS]
     if bad:
@@ -23,7 +24,7 @@ def _parse_formats(value: str) -> list:
     return fmts
 
 
-def _key_value(value: str) -> tuple:
+def _key_value(value: str) -> tuple[str, str]:
     key, sep, val = value.partition("=")
     if not sep or not key.strip():
         raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got {value!r}")
@@ -119,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv=None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.mkdocs and args.inputs:

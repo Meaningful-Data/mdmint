@@ -16,10 +16,12 @@ import shutil
 import struct
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 log = logging.getLogger("mdmint")
 
-_MMDC_PATH = None  # cached result of the PATH lookup (False once we know it's absent)
+# Cached result of the PATH lookup (False once we know it's absent).
+_MMDC_PATH: str | Literal[False] | None = None
 _WARNED = False
 
 # mmdc emits PNGs at CSS-pixel dimensions; place them on the page treating those

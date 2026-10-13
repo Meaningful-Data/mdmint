@@ -14,16 +14,18 @@ import html
 import logging
 import os
 from pathlib import Path
+from types import ModuleType
+from typing import Literal
 
 log = logging.getLogger("mdmint")
 
 _DPI = 200  # render resolution; combined with pixel size to derive on-page pt size
-_MATPLOTLIB = None  # None = not probed yet, False = unavailable, module otherwise
+_MATPLOTLIB: ModuleType | Literal[False] | None = None  # None = not probed yet
 _WARNED = False
 _cache: dict[str, str] = {}
 
 
-def _get_matplotlib():
+def _get_matplotlib() -> ModuleType | None:
     global _MATPLOTLIB
     if _MATPLOTLIB is None:
         try:
