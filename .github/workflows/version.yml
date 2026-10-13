@@ -17,5 +17,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Install package
+        run: python -m pip install .
+
       - name: Compare versions
-        run: bash scripts/check_version.sh
+        # The installed package's metadata carries the version from pyproject.toml.
+        # Run outside the checkout so `import mdmint` loads the installed package.
+        working-directory: ${{ runner.temp }}
+        run: |
+          python - <<'EOF'
+          import sys
+          from importlib.metadata import version
+
+          import mdmint
+
+          if version("mdmint") != mdmint.__version__:
+              print("❌ Version mismatch detected!")
+              print(f"pyproject.toml version: {version('mdmint')}")
+              print(f"__version__ value: {mdmint.__version__}")
+              sys.exit(1)
+          print(f"✅ Versions match ({mdmint.__version__})")
+          EOF
