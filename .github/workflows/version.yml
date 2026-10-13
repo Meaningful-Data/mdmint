@@ -1,0 +1,21 @@
+name: Version Consistency Check
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare versions
+        run: bash scripts/check_version.sh
