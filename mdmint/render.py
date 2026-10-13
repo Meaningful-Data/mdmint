@@ -100,6 +100,7 @@ def _math_block(tokens, idx, options, env):
 # backend needs no generated stylesheet, and the accent-coloured title doubles as
 # the marker the DOCX post-pass keys on (see backends._style_admonitions).
 
+
 def _admonition_open(tokens, idx, options, env):
     tok = tokens[idx]
     tag = (tok.meta or {}).get("tag", "")
@@ -142,12 +143,12 @@ def _build_md() -> MarkdownIt:
     md = (
         MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": False})
         .enable(["table", "strikethrough"])
-        .use(front_matter_plugin)        # strip YAML front-matter from output
+        .use(front_matter_plugin)  # strip YAML front-matter from output
         .use(footnote_plugin)
         .use(tasklists_plugin, enabled=True)
         .use(anchors_plugin, max_level=6, permalink=False, slug_func=slugify)
         .use(dollarmath_plugin, double_inline=True)
-        .use(admon_plugin)               # !!! note / ??? collapsible callouts
+        .use(admon_plugin)  # !!! note / ??? collapsible callouts
     )
     md.core.ruler.before("anchor", "heading_attrs_strip", _heading_attrs_strip)
     md.core.ruler.after("anchor", "heading_attrs_apply", _heading_attrs_apply)
@@ -187,9 +188,7 @@ def _inline_text(inline_token) -> str:
     """Plain-text content of an inline token (for TOC labels)."""
     if not inline_token or not inline_token.children:
         return inline_token.content if inline_token else ""
-    return "".join(
-        c.content for c in inline_token.children if c.type in ("text", "code_inline")
-    )
+    return "".join(c.content for c in inline_token.children if c.type in ("text", "code_inline"))
 
 
 def _extract_headings(tokens):
@@ -214,10 +213,7 @@ def build_toc(headings) -> str:
         link = f'<a href="#{anchor}">{label}</a>' if anchor else label
         indent = (level - 1) * 1.2
         items.append(f'<li style="margin-left:{indent:.1f}em">{link}</li>')
-    return (
-        '<nav class="toc"><div class="toc-title">Contents</div>'
-        f'<ul>{"".join(items)}</ul></nav>'
-    )
+    return f'<nav class="toc"><div class="toc-title">Contents</div><ul>{"".join(items)}</ul></nav>'
 
 
 def has_toc_marker(body: str) -> bool:
@@ -246,6 +242,7 @@ def prefix_anchors(body: str, headings, prefix: str):
         else:
             new_headings.append((level, text, anchor))
     if mapping:
+
         def repl(m: "re.Match") -> str:
             old = m.group(2)
             return f"{m.group(1)}{mapping.get(old, old)}{m.group(3)}"
@@ -255,9 +252,7 @@ def prefix_anchors(body: str, headings, prefix: str):
 
 
 _HEADING_TAG = re.compile(r"<(/?)h([1-6])(?=[\s>])", re.IGNORECASE)
-_HEADING_HTML = re.compile(
-    r"<h([1-6])\b([^>]*)>(.*?)</h\1>", re.IGNORECASE | re.DOTALL
-)
+_HEADING_HTML = re.compile(r"<h([1-6])\b([^>]*)>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
 _ID_ATTR = re.compile(r'\bid="([^"]*)"')
 
 
@@ -265,9 +260,7 @@ def shift_headings(body: str, offset: int) -> str:
     """Demote every heading in *body* by *offset* levels (capped at ``h6``)."""
     if not offset:
         return body
-    return _HEADING_TAG.sub(
-        lambda m: f"<{m.group(1)}h{min(6, int(m.group(2)) + offset)}", body
-    )
+    return _HEADING_TAG.sub(lambda m: f"<{m.group(1)}h{min(6, int(m.group(2)) + offset)}", body)
 
 
 def namespace_ids(body: str, prefix: str) -> str:
@@ -276,8 +269,12 @@ def namespace_ids(body: str, prefix: str) -> str:
     Unlike :func:`prefix_anchors` (headings only), this also covers footnotes, so
     several documents stitched into one keep their footnote links apart.
     """
-    body = re.sub(r'(\bid=")([^"]*)(")', lambda m: f"{m.group(1)}{prefix}{m.group(2)}{m.group(3)}", body)
-    return re.sub(r'(\bhref="#)([^"]+)(")', lambda m: f"{m.group(1)}{prefix}{m.group(2)}{m.group(3)}", body)
+    body = re.sub(
+        r'(\bid=")([^"]*)(")', lambda m: f"{m.group(1)}{prefix}{m.group(2)}{m.group(3)}", body
+    )
+    return re.sub(
+        r'(\bhref="#)([^"]+)(")', lambda m: f"{m.group(1)}{prefix}{m.group(2)}{m.group(3)}", body
+    )
 
 
 def headings_from_html(body: str):

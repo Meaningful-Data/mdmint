@@ -44,8 +44,11 @@ def front_matter(text: str) -> dict:
     if not isinstance(data, dict):
         return {}
     scalars = (str, int, float, datetime.date)
-    return {str(k).lower(): str(v) for k, v in data.items()
-            if isinstance(v, scalars) and not isinstance(v, bool)}
+    return {
+        str(k).lower(): str(v)
+        for k, v in data.items()
+        if isinstance(v, scalars) and not isinstance(v, bool)
+    }
 
 
 def _safe_stem(name: str) -> str:
@@ -88,15 +91,23 @@ def _is_dir_like(path: Path) -> bool:
     return s.endswith(("/", os.sep)) or path.suffix == ""
 
 
-def _write(body: str, out_path: Path, fmt: str, *, title: str,
-           pdf_backend: str, work_dir: Path, template=None, meta=None,
-           styles=None) -> Path:
+def _write(
+    body: str,
+    out_path: Path,
+    fmt: str,
+    *,
+    title: str,
+    pdf_backend: str,
+    work_dir: Path,
+    template=None,
+    meta=None,
+    styles=None,
+) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if fmt == "docx":
         backends.to_docx(body, out_path, template=template, meta=meta, styles=styles)
     else:
-        backends.to_pdf(body, out_path, backend=pdf_backend, title=title,
-                        work_dir=work_dir)
+        backends.to_pdf(body, out_path, backend=pdf_backend, title=title, work_dir=work_dir)
     log.info("wrote %s", out_path)
     return out_path
 
@@ -104,10 +115,18 @@ def _write(body: str, out_path: Path, fmt: str, *, title: str,
 class MarkdownConverter:
     """Convert one or more Markdown files to DOCX and/or PDF."""
 
-    def __init__(self, formats=("pdf",), *, pdf_backend: str = "xhtml2pdf",
-                 merge: bool = False, toc: bool = False, template=None,
-                 meta: dict | None = None, styles: dict | None = None,
-                 section_style: str | None = None):
+    def __init__(
+        self,
+        formats=("pdf",),
+        *,
+        pdf_backend: str = "xhtml2pdf",
+        merge: bool = False,
+        toc: bool = False,
+        template=None,
+        meta: dict | None = None,
+        styles: dict | None = None,
+        section_style: str | None = None,
+    ):
         formats = [f.lower() for f in formats]
         bad = [f for f in formats if f not in VALID_FORMATS]
         if bad:
@@ -224,7 +243,8 @@ class MarkdownConverter:
         written: list[Path] = []
         try:
             body = mkdocs.assemble(
-                project, lambda path: self._render_body(path, work_dir)[0],
+                project,
+                lambda path: self._render_body(path, work_dir)[0],
                 section_style=section_style,
             )
             body = render.strip_toc_markers(body)
@@ -233,13 +253,23 @@ class MarkdownConverter:
                 if toc_html:
                     body = toc_html + "\n" + body
             meta = self._doc_meta(project.meta, body, project.site_name)
-            out_dir, stem = _merged_target(out, project.config_path.parent,
-                                           _safe_stem(project.site_name))
+            out_dir, stem = _merged_target(
+                out, project.config_path.parent, _safe_stem(project.site_name)
+            )
             for fmt in self.formats:
-                written.append(_write(body, out_dir / f"{stem}{_EXT[fmt]}", fmt,
-                                      title=project.site_name, pdf_backend=self.pdf_backend,
-                                      work_dir=work_dir, template=template, meta=meta,
-                                      styles=styles))
+                written.append(
+                    _write(
+                        body,
+                        out_dir / f"{stem}{_EXT[fmt]}",
+                        fmt,
+                        title=project.site_name,
+                        pdf_backend=self.pdf_backend,
+                        work_dir=work_dir,
+                        template=template,
+                        meta=meta,
+                        styles=styles,
+                    )
+                )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
         return written
@@ -272,9 +302,19 @@ class MarkdownConverter:
         written = []
         for fmt in self.formats:
             target = out_dir / f"{stem}{_EXT[fmt]}"
-            written.append(_write(merged, target, fmt, title=title,
-                                  pdf_backend=self.pdf_backend, work_dir=work_dir,
-                                  template=self.template, meta=meta, styles=self.styles))
+            written.append(
+                _write(
+                    merged,
+                    target,
+                    fmt,
+                    title=title,
+                    pdf_backend=self.pdf_backend,
+                    work_dir=work_dir,
+                    template=self.template,
+                    meta=meta,
+                    styles=self.styles,
+                )
+            )
         return written
 
     def _write_separate(self, rendered, out: Path | None, work_dir: Path) -> list:
@@ -296,36 +336,73 @@ class MarkdownConverter:
                     # File-ish path but multiple inputs/formats: use its directory.
                     target = out.parent / f"{md_path.stem}{_EXT[fmt]}"
                 meta = self._doc_meta(self._front.get(md_path, {}), body, md_path.stem)
-                written.append(_write(body, target, fmt, title=md_path.stem,
-                                      pdf_backend=self.pdf_backend, work_dir=work_dir,
-                                      template=self.template, meta=meta, styles=self.styles))
+                written.append(
+                    _write(
+                        body,
+                        target,
+                        fmt,
+                        title=md_path.stem,
+                        pdf_backend=self.pdf_backend,
+                        work_dir=work_dir,
+                        template=self.template,
+                        meta=meta,
+                        styles=self.styles,
+                    )
+                )
         return written
 
 
-def convert(inputs, formats=("pdf",), output=None, *, merge: bool = False,
-            pdf_backend: str = "xhtml2pdf", toc: bool = False, template=None,
-            meta: dict | None = None, styles: dict | None = None) -> list:
+def convert(
+    inputs,
+    formats=("pdf",),
+    output=None,
+    *,
+    merge: bool = False,
+    pdf_backend: str = "xhtml2pdf",
+    toc: bool = False,
+    template=None,
+    meta: dict | None = None,
+    styles: dict | None = None,
+) -> list:
     """Convenience wrapper around :class:`MarkdownConverter`.
 
     Returns the list of written output paths.
     """
     converter = MarkdownConverter(
-        formats, pdf_backend=pdf_backend, merge=merge, toc=toc,
-        template=template, meta=meta, styles=styles,
+        formats,
+        pdf_backend=pdf_backend,
+        merge=merge,
+        toc=toc,
+        template=template,
+        meta=meta,
+        styles=styles,
     )
     return converter.convert(inputs, output=output)
 
 
-def convert_mkdocs(config, formats=("pdf",), output=None, *,
-                   pdf_backend: str = "xhtml2pdf", toc: bool = False, template=None,
-                   meta: dict | None = None, styles: dict | None = None,
-                   section_style: str | None = None) -> list:
+def convert_mkdocs(
+    config,
+    formats=("pdf",),
+    output=None,
+    *,
+    pdf_backend: str = "xhtml2pdf",
+    toc: bool = False,
+    template=None,
+    meta: dict | None = None,
+    styles: dict | None = None,
+    section_style: str | None = None,
+) -> list:
     """Build one document per format from an mkdocs.yml's ``nav``.
 
     Returns the list of written output paths.
     """
     converter = MarkdownConverter(
-        formats, pdf_backend=pdf_backend, toc=toc, template=template, meta=meta,
-        styles=styles, section_style=section_style,
+        formats,
+        pdf_backend=pdf_backend,
+        toc=toc,
+        template=template,
+        meta=meta,
+        styles=styles,
+        section_style=section_style,
     )
     return converter.convert_mkdocs(config, output=output)

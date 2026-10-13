@@ -40,11 +40,11 @@ _OPTION_KEYS = ("template", "section_style", "styles")
 
 @dataclass
 class NavEntry:
-    kind: str                   # "section" or "page"
+    kind: str  # "section" or "page"
     title: str | None
-    depth: int                  # number of enclosing sections
-    path: Path | None = None    # pages only (absolute)
-    appendix: bool = False      # inside an annex/appendix section
+    depth: int  # number of enclosing sections
+    path: Path | None = None  # pages only (absolute)
+    appendix: bool = False  # inside an annex/appendix section
 
 
 @dataclass
@@ -119,8 +119,13 @@ def load(config_path) -> Project:
         meta["subtitle"] = str(cfg["site_description"])
     if cfg.get("site_author"):
         meta["author"] = str(cfg["site_author"])
-    meta.update({str(k).lower(): str(v) for k, v in extra.items()
-                 if k not in _OPTION_KEYS and v is not None})
+    meta.update(
+        {
+            str(k).lower(): str(v)
+            for k, v in extra.items()
+            if k not in _OPTION_KEYS and v is not None
+        }
+    )
     options = {k: extra[k] for k in _OPTION_KEYS if k in extra}
     if "template" in options:
         options["template"] = (config_path.parent / str(options["template"])).resolve()
@@ -142,7 +147,7 @@ def _walk_nav(items, docs_dir: Path, depth: int, appendix: bool, out: list) -> N
                     start = len(out)
                     out.append(section)
                     _walk_nav(value, docs_dir, depth + 1, in_appendix, out)
-                    if not any(e.kind == "page" for e in out[start + 1:]):
+                    if not any(e.kind == "page" for e in out[start + 1 :]):
                         del out[start:]  # drop sections with nothing to show
                 elif isinstance(value, str):
                     _add_page(title, value, docs_dir, depth, appendix, out)
@@ -166,6 +171,7 @@ def _add_page(title, ref: str, docs_dir: Path, depth, appendix, out) -> None:
 
 def _walk_tree(directory: Path, depth: int, out: list) -> None:
     """mkdocs' implicit nav: index/README first, then files and dirs by name."""
+
     def key(p: Path):
         return (p.stem.lower() not in ("index", "readme"), p.name.lower())
 
@@ -177,7 +183,7 @@ def _walk_tree(directory: Path, depth: int, out: list) -> None:
             start = len(out)
             out.append(NavEntry("section", title, depth))
             _walk_tree(child, depth + 1, out)
-            if not any(e.kind == "page" for e in out[start + 1:]):
+            if not any(e.kind == "page" for e in out[start + 1 :]):
                 del out[start:]
         elif child.suffix.lower() in (".md", ".markdown"):
             out.append(NavEntry("page", None, depth, child.resolve()))
@@ -213,7 +219,9 @@ def assemble(project: Project, render_page, *, section_style: str = "part") -> s
             cls = ' class="part"' if level == 0 else ""
             anchor = f"s{idx}-{render.slugify(entry.title or 'section')}"
             label = html.escape(entry.title or "")
-            blocks.append((entry, f'<h{max(level, 1)} id="{anchor}"{cls}>{label}</h{max(level, 1)}>\n'))
+            blocks.append(
+                (entry, f'<h{max(level, 1)} id="{anchor}"{cls}>{label}</h{max(level, 1)}>\n')
+            )
             continue
 
         prefix = f"p{idx}-"
@@ -266,8 +274,11 @@ def _rewrite_links(body: str, page: Path, prefixes: dict, first_ids: dict) -> st
         if target_path.suffix.lower() not in (".md", ".markdown"):
             return m.group(0)  # a relative link to some other file; leave it
         if target_path not in prefixes:
-            log.info("mkdocs: %s links to %s, which is not in the nav; keeping text only",
-                     page.name, target)
+            log.info(
+                "mkdocs: %s links to %s, which is not in the nav; keeping text only",
+                page.name,
+                target,
+            )
             return inner
         anchor = f"{prefixes[target_path]}{frag}" if frag else first_ids.get(target_path)
         if not anchor:

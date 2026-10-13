@@ -113,9 +113,12 @@ def render(source: str, work_dir: Path) -> str:
         in_path.write_text(source, encoding="utf-8")
         cmd = [
             mmdc,
-            "-i", str(in_path),
-            "-o", str(out_path),
-            "-b", "transparent",
+            "-i",
+            str(in_path),
+            "-o",
+            str(out_path),
+            "-b",
+            "transparent",
         ]
         try:
             subprocess.run(

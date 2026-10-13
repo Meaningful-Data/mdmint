@@ -27,9 +27,7 @@ _IMG_SRC = re.compile(r'(<img\b[^>]*?\ssrc=)(["\'])(.*?)\2', re.IGNORECASE)
 def load_css() -> str:
     """Return the bundled default stylesheet."""
     if _res_files is not None:
-        return _res_files("mdmint.resources").joinpath("default.css").read_text(
-            encoding="utf-8"
-        )
+        return _res_files("mdmint.resources").joinpath("default.css").read_text(encoding="utf-8")
     here = Path(__file__).parent / "resources" / "default.css"  # pragma: no cover
     return here.read_text(encoding="utf-8")
 
@@ -92,7 +90,7 @@ def _set_cell_borders(tcPr, accent: str) -> None:
 
     borders = OxmlElement("w:tcBorders")
     edges = {
-        "left": ("24", accent),   # 24 eighths = 3pt accent bar
+        "left": ("24", accent),  # 24 eighths = 3pt accent bar
         "top": ("4", "DDDDDD"),
         "bottom": ("4", "DDDDDD"),
         "right": ("4", "DDDDDD"),
@@ -157,8 +155,14 @@ def _flatten_loose_list_items(body: str) -> str:
     return str(soup)
 
 
-def to_docx(body: str, out_path: str | os.PathLike, *, template=None,
-            meta: dict | None = None, styles: dict | None = None) -> None:
+def to_docx(
+    body: str,
+    out_path: str | os.PathLike,
+    *,
+    template=None,
+    meta: dict | None = None,
+    styles: dict | None = None,
+) -> None:
     """Write *body* (an HTML fragment) to a .docx file.
 
     With a *template* (.docx/.dotx) the template-aware writer in
