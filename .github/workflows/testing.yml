@@ -1,0 +1,48 @@
+name: Testing
+
+on:
+  pull_request:
+    branches: ["master"]
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  testing:
+    runs-on: ${{matrix.os}}
+
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install poetry
+        run: pipx install poetry
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: poetry
+      - name: Install dependencies
+        shell: bash
+        run: poetry install --no-root --all-extras
+      - name: Check compliance with code formatting guidelines
+        run: poetry run ruff format --no-cache --check
+      - name: Run lint checks
+        run: poetry run ruff check --output-format=github
+      - name: Run type checks
+        run: poetry run mypy --show-error-codes --pretty
+      - name: Run tests
+        run: poetry run pytest --cov=mdmint -n auto --verbose --tb=short --strict-markers --strict-config --durations=10
+      - name: Check coverage
+        run: poetry run coverage report --fail-under=80
