@@ -14,20 +14,23 @@ import html
 import logging
 import os
 from pathlib import Path
+from types import ModuleType
+from typing import Literal
 
 log = logging.getLogger("mdmint")
 
 _DPI = 200  # render resolution; combined with pixel size to derive on-page pt size
-_MATPLOTLIB = None  # None = not probed yet, False = unavailable, module otherwise
+_MATPLOTLIB: ModuleType | Literal[False] | None = None  # None = not probed yet
 _WARNED = False
 _cache: dict[str, str] = {}
 
 
-def _get_matplotlib():
+def _get_matplotlib() -> ModuleType | None:
     global _MATPLOTLIB
     if _MATPLOTLIB is None:
         try:
             import matplotlib
+
             matplotlib.use("Agg")  # headless backend, no display needed
             _MATPLOTLIB = matplotlib
         except Exception:  # pragma: no cover - depends on environment
@@ -63,12 +66,12 @@ def render(expr: str, block: bool, work_dir: Path) -> str:
     if key in _cache:
         return _cache[key]
 
-    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     out_path = work_dir / f"math-{digest}.png"
 
     try:
-        from matplotlib.figure import Figure
         from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
 
         fig = Figure(figsize=(0.1, 0.1))
         FigureCanvasAgg(fig)
@@ -91,8 +94,7 @@ def render(expr: str, block: bool, work_dir: Path) -> str:
         h_pt = h_px / _DPI * 72.0
         w_pt = w_px / _DPI * 72.0
     except Exception as exc:
-        log.warning("math: could not render %r (%s); using literal text.",
-                    expr, type(exc).__name__)
+        log.warning("math: could not render %r (%s); using literal text.", expr, type(exc).__name__)
         result = _fallback(expr, block)
         _cache[key] = result
         return result

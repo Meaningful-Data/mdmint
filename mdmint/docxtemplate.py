@@ -30,12 +30,15 @@ import logging
 import os
 import re
 import zipfile
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, TypedDict, Union, cast
 
-from bs4 import BeautifulSoup, Comment, NavigableString, Tag
+from bs4 import BeautifulSoup
+from bs4.element import Comment, NavigableString, PageElement, Tag
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import CONTENT_TYPE as CT
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.opc.packuri import PackURI
@@ -46,6 +49,13 @@ from docx.shared import Emu, Pt
 from docx.text.paragraph import Paragraph
 
 from . import admonitions
+
+if TYPE_CHECKING:
+    from docx.document import Document as DocxDocument
+    from docx.oxml.text.paragraph import CT_P
+    from docx.oxml.xmlchemy import BaseOxmlElement
+    from docx.styles.style import BaseStyle, CharacterStyle, ParagraphStyle, _TableStyle
+    from docx.table import Table, _Cell
 
 log = logging.getLogger("mdmint")
 
@@ -72,13 +82,44 @@ _ROLES = {
 }
 _WARNING_TYPES = {"warning", "failure", "danger", "bug"}
 _GH_MARKER = re.compile(r"^\s*\[!(\w+)\][ \t]*\n?")
-_GH_TYPES = {"NOTE": "note", "TIP": "note", "IMPORTANT": "note",
-             "WARNING": "warning", "CAUTION": "warning"}
-_ALIGN = {"left": WD_ALIGN_PARAGRAPH.LEFT, "center": WD_ALIGN_PARAGRAPH.CENTER,
-          "right": WD_ALIGN_PARAGRAPH.RIGHT, "justify": WD_ALIGN_PARAGRAPH.JUSTIFY}
-_BLOCK_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "pre",
-               "blockquote", "table", "div", "nav", "hr", "section", "figure",
-               "details", "summary", "dl", "center", "article", "aside"}
+_GH_TYPES = {
+    "NOTE": "note",
+    "TIP": "note",
+    "IMPORTANT": "note",
+    "WARNING": "warning",
+    "CAUTION": "warning",
+}
+_ALIGN = {
+    "left": WD_ALIGN_PARAGRAPH.LEFT,
+    "center": WD_ALIGN_PARAGRAPH.CENTER,
+    "right": WD_ALIGN_PARAGRAPH.RIGHT,
+    "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+}
+_BLOCK_TAGS = {
+    "p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "ul",
+    "ol",
+    "pre",
+    "blockquote",
+    "table",
+    "div",
+    "nav",
+    "hr",
+    "section",
+    "figure",
+    "details",
+    "summary",
+    "dl",
+    "center",
+    "article",
+    "aside",
+}
 _PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 _CONTENT_MARKERS = {"CONTENT", "BODY"}
 _CONTENT_ANCHOR = re.compile(r"\s*\{\{\s*(CONTENT|BODY)\s*\}\}\s*", re.IGNORECASE)
@@ -87,14 +128,16 @@ _MONO = "Courier New"
 _WORD_TABLE_STYLE = re.compile(
     r"^(normal table|table normal|table grid|table \w+ \d|(light|medium|dark|colou?rful)"
     r" |plain table|grid table|list table|table (simple|classic|colorful|columns|contemporary"
-    r"|elegant|list|professional|subtle|theme|web|3d))", re.IGNORECASE)
+    r"|elegant|list|professional|subtle|theme|web|3d))",
+    re.IGNORECASE,
+)
 _LIST_INDENT_PT = 18
 
 
 # ------------------------------------------------------------------ template
 
 
-def _open_template(path: Path):
+def _open_template(path: Path) -> DocxDocument:
     """Open a .docx/.dotx as a python-docx Document (templates need a content-type
     swap, since python-docx only opens the *document* main part type)."""
     if path.suffix.lower() not in (".dotx", ".dotm"):
@@ -104,16 +147,21 @@ def _open_template(path: Path):
         for item in zin.infolist():
             data = zin.read(item.filename)
             if item.filename == "[Content_Types].xml":
-                data = re.sub(rb"wordprocessingml\.template\.main\+xml",
-                              b"wordprocessingml.document.main+xml", data)
-                data = data.replace(b"application/vnd.ms-word.template.macroEnabledTemplate.main+xml",
-                                    b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml")
+                data = re.sub(
+                    rb"wordprocessingml\.template\.main\+xml",
+                    b"wordprocessingml.document.main+xml",
+                    data,
+                )
+                data = data.replace(
+                    b"application/vnd.ms-word.template.macroEnabledTemplate.main+xml",
+                    b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+                )
             zout.writestr(item, data)
     buf.seek(0)
     return Document(buf)
 
 
-def _story_elements(doc):
+def _story_elements(doc: DocxDocument) -> Iterator[BaseOxmlElement]:
     """Root elements of the body and of every header/footer part."""
     yield doc.element.body
     for rel in doc.part.rels.values():
@@ -123,7 +171,7 @@ def _story_elements(doc):
                 yield element
 
 
-def fill_placeholders(doc, meta: dict) -> list:
+def fill_placeholders(doc: DocxDocument, meta: Mapping[str, object]) -> list[str]:
     """Replace ``{{KEY}}`` text with ``meta['key']`` in body, headers and footers.
 
     Returns the placeholder names found that had no value (they are blanked).
@@ -132,7 +180,7 @@ def fill_placeholders(doc, meta: dict) -> list:
     values = {str(k).upper(): "" if v is None else str(v) for k, v in meta.items()}
     missing: list[str] = []
 
-    def sub(m: re.Match) -> str:
+    def sub(m: re.Match[str]) -> str:
         key = m.group(1).upper()
         if key in _CONTENT_MARKERS:
             return m.group(0)
@@ -142,7 +190,7 @@ def fill_placeholders(doc, meta: dict) -> list:
 
     for root in _story_elements(doc):
         for p in root.iter(qn("w:p")):
-            texts = [t for t in p.iter(qn("w:t"))]
+            texts = list(p.iter(qn("w:t")))
             if not texts or "{{" not in "".join(t.text or "" for t in texts):
                 continue
             for t in texts:  # common case: each placeholder sits in one run
@@ -164,7 +212,7 @@ def fill_placeholders(doc, meta: dict) -> list:
     return missing
 
 
-def _settings_insert(settings, el, before: tuple) -> None:
+def _settings_insert(settings: BaseOxmlElement, el: BaseOxmlElement, before: Sequence[str]) -> None:
     """Insert *el* into settings.xml respecting the schema's element order."""
     for name in before:
         found = settings.find(qn(name))
@@ -174,12 +222,22 @@ def _settings_insert(settings, el, before: tuple) -> None:
     settings.append(el)
 
 
-_AFTER_UPDATE_FIELDS = ("w:hdrShapeDefaults", "w:footnotePr", "w:endnotePr", "w:compat",
-                        "w:docVars", "w:rsids", "w:themeFontLang", "w:clrSchemeMapping",
-                        "w:shapeDefaults", "w:decimalSymbol", "w:listSeparator")
+_AFTER_UPDATE_FIELDS = (
+    "w:hdrShapeDefaults",
+    "w:footnotePr",
+    "w:endnotePr",
+    "w:compat",
+    "w:docVars",
+    "w:rsids",
+    "w:themeFontLang",
+    "w:clrSchemeMapping",
+    "w:shapeDefaults",
+    "w:decimalSymbol",
+    "w:listSeparator",
+)
 
 
-def _enable_update_fields(doc) -> None:
+def _enable_update_fields(doc: DocxDocument) -> None:
     settings = doc.settings.element
     if settings.find(qn("w:updateFields")) is None:
         el = OxmlElement("w:updateFields")
@@ -193,32 +251,37 @@ def _enable_update_fields(doc) -> None:
 class _Styles:
     """Resolve style roles against the template, with user overrides."""
 
-    def __init__(self, doc, overrides: dict | None):
+    def __init__(self, doc: DocxDocument, overrides: Mapping[str, str] | None) -> None:
         self.doc = doc
-        self.by_name = {}
+        self.by_name: dict[str, BaseStyle] = {}
         for s in doc.styles:
             try:
-                self.by_name.setdefault(s.name.lower(), s)
-            except Exception:  # pragma: no cover - malformed style entries
+                name = s.name
+            except Exception:  # noqa: S112  # pragma: no cover - malformed style entries
                 continue
+            if name is not None:
+                self.by_name.setdefault(name.lower(), s)
         self.overrides = {k: v for k, v in (overrides or {}).items() if v}
-        self._cache: dict[str, object] = {}
+        self._cache: dict[str, BaseStyle | None] = {}
 
-    def named(self, name: str):
+    def named(self, name: str) -> BaseStyle | None:
         return self.by_name.get(name.lower())
 
-    def get(self, role: str):
+    def get(self, role: str) -> BaseStyle | None:
         if role in self._cache:
             return self._cache[role]
-        style = None
+        style: BaseStyle | None = None
         if role in self.overrides:
             style = self.named(self.overrides[role])
             if style is None:
-                log.warning("template: style %r (for %s) not found; using default",
-                            self.overrides[role], role)
+                log.warning(
+                    "template: style %r (for %s) not found; using default",
+                    self.overrides[role],
+                    role,
+                )
         if style is None:
             if role.startswith("heading"):
-                level = int(role[len("heading"):])
+                level = int(role[len("heading") :])
                 for lvl in range(level, 0, -1):
                     style = self.named(f"Heading {lvl}")
                     if style is not None:
@@ -226,32 +289,46 @@ class _Styles:
             elif role == "table":
                 # The template's own table style: the first one that isn't one of
                 # Word's stock styles (which templates often carry unused).
-                style = next((s for s in self.doc.styles
-                              if s.type == WD_STYLE_TYPE.TABLE
-                              and not _WORD_TABLE_STYLE.match(s.name)), None) \
-                    or self.named("Table Grid")
+                style = next(
+                    (
+                        s
+                        for s in self.doc.styles
+                        if s.type == WD_STYLE_TYPE.TABLE
+                        and s.name
+                        and not _WORD_TABLE_STYLE.match(s.name)
+                    ),
+                    None,
+                ) or self.named("Table Grid")
             else:
-                style = next((self.named(n) for n in _ROLES.get(role, [])
-                              if self.named(n) is not None), None)
+                style = next(
+                    (self.named(n) for n in _ROLES.get(role, []) if self.named(n) is not None), None
+                )
         self._cache[role] = style
         return style
 
-    def ensure_footnote_styles(self):
+    def ensure_footnote_styles(self) -> tuple[ParagraphStyle, CharacterStyle]:
         """Footnote styles, created (minimal) if the template has none."""
         styles = self.doc.styles
         if self.get("footnote_text") is None:
-            st = styles.add_style("Footnote Text", WD_STYLE_TYPE.PARAGRAPH)
-            st.base_style = styles["Normal"]
-            st.font.size = Pt(9)
-            st.paragraph_format.space_before = Pt(0)
-            st.paragraph_format.space_after = Pt(2)
-            st.paragraph_format.line_spacing = 1.0
-            self._cache["footnote_text"] = st
+            text_st = cast(
+                "ParagraphStyle", styles.add_style("Footnote Text", WD_STYLE_TYPE.PARAGRAPH)
+            )
+            text_st.base_style = styles["Normal"]
+            text_st.font.size = Pt(9)
+            text_st.paragraph_format.space_before = Pt(0)
+            text_st.paragraph_format.space_after = Pt(2)
+            text_st.paragraph_format.line_spacing = 1.0
+            self._cache["footnote_text"] = text_st
         if self.get("footnote_ref") is None:
-            st = styles.add_style("Footnote Reference", WD_STYLE_TYPE.CHARACTER)
-            st.font.superscript = True
-            self._cache["footnote_ref"] = st
-        return self.get("footnote_text"), self.get("footnote_ref")
+            ref_st = cast(
+                "CharacterStyle", styles.add_style("Footnote Reference", WD_STYLE_TYPE.CHARACTER)
+            )
+            ref_st.font.superscript = True
+            self._cache["footnote_ref"] = ref_st
+        return (
+            cast("ParagraphStyle", self.get("footnote_text")),
+            cast("CharacterStyle", self.get("footnote_ref")),
+        )
 
 
 # ------------------------------------------------------------------ helpers
@@ -267,25 +344,35 @@ def _length_pt(value: str | None) -> float | None:
     return num * {"pt": 1, "px": 0.75, "in": 72, "cm": 72 / 2.54, "mm": 72 / 25.4}[unit]
 
 
-def _css(tag: Tag) -> dict:
-    out = {}
-    for decl in (tag.get("style") or "").split(";"):
+def _attr(tag: Tag, name: str) -> str:
+    """An attribute's value as text ("" when absent)."""
+    value = tag.get(name)
+    if value is None:
+        return ""
+    return value if isinstance(value, str) else " ".join(value)
+
+
+def _css(tag: Tag) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for decl in _attr(tag, "style").split(";"):
         if ":" in decl:
             k, v = decl.split(":", 1)
             out[k.strip().lower()] = v.strip()
     return out
 
 
-def _classes(tag: Tag) -> list:
-    cls = tag.get("class") or []
+def _classes(tag: Tag) -> list[str]:
+    cls = tag.get("class")
+    if not cls:
+        return []
     return cls.split() if isinstance(cls, str) else list(cls)
 
 
-def _is_blank(node) -> bool:
+def _is_blank(node: PageElement) -> bool:
     return isinstance(node, NavigableString) and not node.strip()
 
 
-def _trim_el(p_el, left: bool = True) -> None:
+def _trim_el(p_el: BaseOxmlElement, left: bool = True) -> None:
     """Strip leading/trailing whitespace from a paragraph's text runs (HTML
     whitespace collapsing leaves stray spaces at the edges)."""
     ts = list(p_el.iter(qn("w:t")))
@@ -296,17 +383,17 @@ def _trim_el(p_el, left: bool = True) -> None:
                 break
 
 
-def _text_el(text: str):
+def _text_el(text: str) -> BaseOxmlElement:
     t = OxmlElement("w:t")
     t.set(qn("xml:space"), "preserve")
     t.text = text
     return t
 
 
-class _Fmt(dict):
+class _Fmt(dict[str, Union[bool, str]]):
     """Inline formatting state (bold, italic, code…) — copied on nesting."""
 
-    def with_(self, **kw):
+    def with_(self, **kw: bool | str) -> _Fmt:
         new = _Fmt(self)
         new.update(kw)
         return new
@@ -315,37 +402,49 @@ class _Fmt(dict):
 class _PartParent:
     """Minimal parent so a python-docx Paragraph can live in a footnote."""
 
-    def __init__(self, part):
+    def __init__(self, part: StoryPart) -> None:
         self.part = part
+
+
+class _ListCtx(TypedDict):
+    """State of one open list while its items are written."""
+
+    ordered: bool
+    num: int | None  # Word numbering instance, None without numbering
+    first: bool  # the next text starts a new item
+    max_lvl: int  # deepest level that numbering defines
 
 
 # ------------------------------------------------------------------ writer
 
 
 class TemplateWriter:
-    def __init__(self, doc, styles: _Styles):
+    def __init__(self, doc: DocxDocument, styles: _Styles) -> None:
         self.doc = doc
         self.st = styles
         sec = doc.sections[-1]
-        self.text_width = int(sec.page_width - sec.left_margin - sec.right_margin)
-        self.max_height = int((sec.page_height - sec.top_margin - sec.bottom_margin) * 0.8)
-        self.container = doc
-        self.reuse_p = None           # empty paragraph to fill first (table cells)
-        self.default_style = None     # paragraph style for plain text
-        self.quote_style = None
-        self.list_stack: list[dict] = []
-        self.last_list_p = None
+        width = (sec.page_width or 0) - (sec.left_margin or 0) - (sec.right_margin or 0)
+        height = (sec.page_height or 0) - (sec.top_margin or 0) - (sec.bottom_margin or 0)
+        self.text_width = int(width)
+        self.max_height = int(height * 0.8)
+        self.container: DocxDocument | _Cell = doc
+        self.reuse_p: Paragraph | None = None  # empty paragraph to fill first (table cells)
+        self.default_style: BaseStyle | None = None  # paragraph style for plain text
+        self.quote_style: BaseStyle | None = None
+        self.list_stack: list[_ListCtx] = []
+        self.last_list_p: Paragraph | None = None
         self.after_table = False
         self.pending_break = False
         self.bookmarks: dict[str, str] = {}
         self._bm_id = 9000
         self.counters: dict[str, int] = {}
         self.footnote_src: dict[str, Tag] = {}
-        self._fn_root = None
-        self._fn_part = None
+        self._fn_root: BaseOxmlElement | None = None
+        self._fn_part: StoryPart | None = None
         self._fn_next = 1
-        self.has_toc = any("TOC" in (t.text or "")
-                           for t in doc.element.body.iter(qn("w:instrText")))
+        self.has_toc = any(
+            "TOC" in (t.text or "") for t in doc.element.body.iter(qn("w:instrText"))
+        )
         self._bullet_num = self._style_num(self.st.get("list_bullet"))
         self._number_abstract = self._abstract_for(self._style_num(self.st.get("list_number")))
 
@@ -360,30 +459,32 @@ class TemplateWriter:
                 c.extract()
         self._collect_footnotes(soup)
         for i, h in enumerate(soup.find_all(re.compile(r"^h[1-6]$"))):
-            if h.get("id"):
-                self.bookmarks.setdefault(h["id"], f"_mdmint{i}")
+            h_id = _attr(h, "id")
+            if h_id:
+                self.bookmarks.setdefault(h_id, f"_mdmint{i}")
         self.blocks(soup)
 
-    def _collect_footnotes(self, soup) -> None:
+    def _collect_footnotes(self, soup: BeautifulSoup) -> None:
         for sec in soup.find_all("section", class_="footnotes"):
             for li in sec.find_all("li", class_="footnote-item"):
                 for back in li.find_all("a", class_="footnote-backref"):
                     back.decompose()
-                if li.get("id"):
-                    self.footnote_src[li["id"]] = li
+                li_id = _attr(li, "id")
+                if li_id:
+                    self.footnote_src[li_id] = li
             sec.extract()
         for hr in soup.find_all("hr", class_="footnotes-sep"):
             hr.decompose()
 
     # ---- paragraphs -------------------------------------------------------
 
-    def _para(self, style=None):
+    def _para(self, style: BaseStyle | None = None) -> Paragraph:
         if self.reuse_p is not None:
             p, self.reuse_p = self.reuse_p, None
         else:
             p = self.container.add_paragraph()
         if style is not None:
-            p.style = style
+            p.style = cast("ParagraphStyle", style)
         if self.container is self.doc:
             if self.after_table:
                 p.paragraph_format.space_before = Pt(12)
@@ -393,7 +494,7 @@ class TemplateWriter:
                 self.pending_break = False
         return p
 
-    def _text_para(self):
+    def _text_para(self) -> Paragraph:
         """A paragraph for running text, styled for the current list/quote context."""
         if self.list_stack:
             ctx, depth = self.list_stack[-1], len(self.list_stack) - 1
@@ -416,12 +517,12 @@ class TemplateWriter:
         return self._para(self.quote_style or self.default_style)
 
     @staticmethod
-    def _trim(p) -> None:
+    def _trim(p: Paragraph) -> None:
         _trim_el(p._p)
 
     # ---- numbering --------------------------------------------------------
 
-    def _style_num(self, style):
+    def _style_num(self, style: BaseStyle | None) -> int | None:
         if style is None:
             return None
         ppr = style.element.find(qn("w:pPr"))
@@ -429,10 +530,10 @@ class TemplateWriter:
         numid = numpr.find(qn("w:numId")) if numpr is not None else None
         return int(numid.get(qn("w:val"))) if numid is not None else None
 
-    def _numbering(self):
+    def _numbering(self) -> BaseOxmlElement:
         return self.doc.part.numbering_part.element
 
-    def _abstract_for(self, num_id):
+    def _abstract_for(self, num_id: int | None) -> str | None:
         if num_id is None:
             return None
         for n in self._numbering().findall(qn("w:num")):
@@ -441,20 +542,21 @@ class TemplateWriter:
                 return a.get(qn("w:val")) if a is not None else None
         return None
 
-    def _max_level(self, num_id) -> int:
+    def _max_level(self, num_id: int | None) -> int:
         abstract = self._abstract_for(num_id)
         for a in self._numbering().findall(qn("w:abstractNum")):
             if a.get(qn("w:abstractNumId")) == abstract:
                 return max(0, len(a.findall(qn("w:lvl"))) - 1)
         return 0
 
-    def _new_num(self, start: int):
+    def _new_num(self, start: int) -> int | None:
         """A fresh numbering instance so each ordered list restarts at *start*."""
         if self._number_abstract is None:
             return None
         numbering = self._numbering()
-        num_id = max((int(n.get(qn("w:numId"))) for n in numbering.findall(qn("w:num"))),
-                     default=0) + 1
+        num_id = (
+            max((int(n.get(qn("w:numId"))) for n in numbering.findall(qn("w:num"))), default=0) + 1
+        )
         num = OxmlElement("w:num")
         num.set(qn("w:numId"), str(num_id))
         a = OxmlElement("w:abstractNumId")
@@ -471,18 +573,21 @@ class TemplateWriter:
         return num_id
 
     @staticmethod
-    def _numpr(p, num_id, ilvl) -> None:
+    def _numpr(p: Paragraph, num_id: int, ilvl: int) -> None:
         numpr = p._p.get_or_add_pPr().get_or_add_numPr()
         numpr.get_or_add_ilvl().val = ilvl
         numpr.get_or_add_numId().val = num_id
 
     # ---- blocks -----------------------------------------------------------
 
-    def blocks(self, parent) -> None:
-        pending: list = []
+    def blocks(self, parent: Tag) -> None:
+        pending: list[PageElement] = []
         for node in list(parent.children):
-            if isinstance(node, Tag) and node.name in _BLOCK_TAGS or \
-                    (isinstance(node, Tag) and node.name == "img" and not pending):
+            if (
+                isinstance(node, Tag)
+                and node.name in _BLOCK_TAGS
+                or (isinstance(node, Tag) and node.name == "img" and not pending)
+            ):
                 self._flush(pending)
                 pending = []
                 self.block(node)
@@ -490,7 +595,7 @@ class TemplateWriter:
                 pending.append(node)
         self._flush(pending)
 
-    def _flush(self, nodes) -> None:
+    def _flush(self, nodes: Sequence[PageElement]) -> None:
         if all(_is_blank(n) for n in nodes):
             return
         p = self._text_para()
@@ -526,7 +631,7 @@ class TemplateWriter:
         else:
             self.blocks(node)
 
-    def heading(self, node, level: int, cls) -> None:
+    def heading(self, node: Tag, level: int, cls: list[str]) -> None:
         if "part" in cls:
             style = self.st.get("part") or self.st.get("heading1")
         elif "appendix" in cls:
@@ -534,8 +639,9 @@ class TemplateWriter:
         else:
             style = self.st.get(f"heading{level}")
         p = self._para(style)
-        if node.get("id") in self.bookmarks:
-            self._bookmark(p, self.bookmarks[node["id"]])
+        bookmark = self.bookmarks.get(_attr(node, "id"))
+        if bookmark is not None:
+            self._bookmark(p, bookmark)
         for child in node.children:
             self.inline(p, child, _Fmt())
         self._trim(p)
@@ -543,13 +649,13 @@ class TemplateWriter:
     def paragraph(self, node: Tag) -> None:
         kids = [c for c in node.children if not _is_blank(c)]
         if kids and all(isinstance(c, Tag) and c.name in ("img", "br") for c in kids):
-            for img in (c for c in kids if c.name == "img"):
+            for img in (c for c in kids if isinstance(c, Tag) and c.name == "img"):
                 self.figure(img, diagram="mermaid-diagram" in _classes(node))
             return
         text = node.get_text()
         nxt = node.find_next_sibling()
-        if text.startswith("Table: ") and nxt is not None and nxt.name == "table":
-            first = next(node.strings)
+        if text.startswith("Table: ") and isinstance(nxt, Tag) and nxt.name == "table":
+            first = cast(NavigableString, next(node.strings))
             first.replace_with(first.replace("Table: ", "", 1))
             self.caption("Table", node).paragraph_format.keep_with_next = True
             return
@@ -562,14 +668,20 @@ class TemplateWriter:
         ordered = node.name == "ol"
         if ordered:
             try:
-                start = int(node.get("start") or 1)
+                start = int(_attr(node, "start") or 1)
             except ValueError:
                 start = 1
             num = self._new_num(start)
         else:
             num = self._bullet_num
-        self.list_stack.append({"ordered": ordered, "num": num, "first": True,
-                                "max_lvl": self._max_level(num) if num is not None else 0})
+        self.list_stack.append(
+            {
+                "ordered": ordered,
+                "num": num,
+                "first": True,
+                "max_lvl": self._max_level(num) if num is not None else 0,
+            }
+        )
         for li in node.find_all("li", recursive=False):
             self.list_stack[-1]["first"] = True
             self.blocks(li)
@@ -591,7 +703,7 @@ class TemplateWriter:
             if i < len(lines) - 1:
                 run.add_break()
 
-    def _with_quote(self, role: str, content) -> None:
+    def _with_quote(self, role: str, content: Tag) -> None:
         prev, self.quote_style = self.quote_style, self.st.get(role)
         try:
             self.blocks(content)
@@ -605,23 +717,36 @@ class TemplateWriter:
             m = _GH_MARKER.match(first)
             if m:
                 role = _GH_TYPES.get(m.group(1).upper(), "quote")
-                first.replace_with(first[m.end():])
+                cast(NavigableString, first).replace_with(first[m.end() :])
         self._with_quote(role, node)
 
-    def admonition(self, node: Tag, cls) -> None:
+    def admonition(self, node: Tag, cls: list[str]) -> None:
         kind = admonitions.resolve(cls[1] if len(cls) > 1 else "note")
         role = "warning" if kind in _WARNING_TYPES else "quote" if kind == "quote" else "note"
         cell = node.find(["td", "th"])
-        if cell is not None:
+        if isinstance(cell, Tag):
             self._with_quote(role, cell)
 
     def rule(self) -> None:
         p = self._para()
-        bdr = parse_xml(f'<w:pBdr {nsdecls("w")}><w:bottom w:val="single" w:sz="6" '
-                        'w:space="1" w:color="auto"/></w:pBdr>')
+        bdr = parse_xml(
+            f'<w:pBdr {nsdecls("w")}><w:bottom w:val="single" w:sz="6" '
+            'w:space="1" w:color="auto"/></w:pBdr>'
+        )
         p._p.get_or_add_pPr().insert_element_before(
-            bdr, "w:shd", "w:tabs", "w:suppressAutoHyphens", "w:spacing", "w:ind",
-            "w:contextualSpacing", "w:jc", "w:outlineLvl", "w:rPr", "w:sectPr", "w:pPrChange")
+            bdr,
+            "w:shd",
+            "w:tabs",
+            "w:suppressAutoHyphens",
+            "w:spacing",
+            "w:ind",
+            "w:contextualSpacing",
+            "w:jc",
+            "w:outlineLvl",
+            "w:rPr",
+            "w:sectPr",
+            "w:pPrChange",
+        )
 
     def toc(self) -> None:
         if self.has_toc:
@@ -630,18 +755,24 @@ class TemplateWriter:
         heading = self._para(self.st.get("toc_heading"))
         heading.add_run("Contents").bold = self.st.get("toc_heading") is None
         p = self._para()
-        self._field(p, ' TOC \\o "1-3" \\h \\z \\u ', "Update this field (F9) to build the table of contents.")
+        self._field(
+            p,
+            ' TOC \\o "1-3" \\h \\z \\u ',
+            "Update this field (F9) to build the table of contents.",
+        )
         _enable_update_fields(self.doc)
 
     # ---- tables -----------------------------------------------------------
 
     def table(self, node: Tag) -> None:
-        rows = []
+        rows: list[tuple[bool, list[Tag]]] = []
         for group in node.find_all(["thead", "tbody", "tfoot", "tr"], recursive=False):
             trs = [group] if group.name == "tr" else group.find_all("tr", recursive=False)
             for tr in trs:
-                cells = tr.find_all(["th", "td"], recursive=False)
-                header = group.name == "thead" or (cells and all(c.name == "th" for c in cells))
+                cells = list(tr.find_all(["th", "td"], recursive=False))
+                header = group.name == "thead" or (
+                    bool(cells) and all(c.name == "th" for c in cells)
+                )
                 rows.append((header, cells))
         rows = [r for r in rows if r[1]]
         if not rows:
@@ -652,7 +783,7 @@ class TemplateWriter:
         tbl = self.container.add_table(rows=len(rows), cols=ncols)
         style = self.st.get("table")
         if style is not None:
-            tbl.style = style
+            tbl.style = cast("_TableStyle", style)
         tblw = tbl._tbl.tblPr.find(qn("w:tblW"))
         if tblw is None:
             tblw = OxmlElement("w:tblW")
@@ -662,8 +793,14 @@ class TemplateWriter:
         self._column_widths(tbl, rows, ncols)
 
         head_style, text_style = self.st.get("table_heading"), self.st.get("table_text")
-        saved = (self.container, self.reuse_p, self.default_style, self.quote_style,
-                 self.list_stack, self.pending_break)
+        saved = (
+            self.container,
+            self.reuse_p,
+            self.default_style,
+            self.quote_style,
+            self.list_stack,
+            self.pending_break,
+        )
         try:
             for r_idx, (is_head, cells) in enumerate(rows):
                 row = tbl.rows[r_idx]
@@ -677,7 +814,7 @@ class TemplateWriter:
                     self.default_style = head_style if is_head else text_style
                     self.quote_style, self.list_stack, self.pending_break = None, [], False
                     if c_idx >= len(cells):
-                        self.reuse_p.style = self.default_style
+                        self.reuse_p.style = cast("ParagraphStyle | None", self.default_style)
                         continue
                     src = cells[c_idx]
                     bold = is_head and head_style is None
@@ -688,25 +825,33 @@ class TemplateWriter:
                         for child in src.children:
                             self.inline(p, child, _Fmt(bold=bold))
                         self._trim(p)
-                    align = _css(src).get("text-align")
+                    align = _css(src).get("text-align", "")
                     if align in _ALIGN:
                         for p in cell.paragraphs:
                             p.alignment = _ALIGN[align]
         finally:
-            (self.container, self.reuse_p, self.default_style, self.quote_style,
-             self.list_stack, self.pending_break) = saved
+            (
+                self.container,
+                self.reuse_p,
+                self.default_style,
+                self.quote_style,
+                self.list_stack,
+                self.pending_break,
+            ) = saved
         self.after_table = True
 
-    def _column_widths(self, tbl, rows, ncols) -> None:
+    def _column_widths(
+        self, tbl: Table, rows: Sequence[tuple[bool, list[Tag]]], ncols: int
+    ) -> None:
         """Share the text width between columns by content.
 
         Each column first gets enough room for its longest word (so nothing breaks
         mid-word), then the rest is shared in proportion to how much text the
         column holds. If even the minimums don't fit, they are scaled down.
         """
-        char = Pt(5.5)          # rough average glyph width at table text size
-        padding = Pt(14)        # cell margins
-        need = [0] * ncols      # longest word, in characters
+        char = Pt(5.5)  # rough average glyph width at table text size
+        padding = Pt(14)  # cell margins
+        need = [0] * ncols  # longest word, in characters
         volume = [1.0] * ncols  # typical cell length, capped
         for _, cells in rows:
             for i, c in enumerate(cells):
@@ -734,12 +879,16 @@ class TemplateWriter:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         self._picture(p, img)
         cls = _classes(img)
-        caption = img.get("title") or img.get("alt") or ""
-        if caption and not diagram and not any(c.startswith("math") for c in cls) \
-                and caption != "mermaid diagram":
+        caption = _attr(img, "title") or _attr(img, "alt")
+        if (
+            caption
+            and not diagram
+            and not any(c.startswith("math") for c in cls)
+            and caption != "mermaid diagram"
+        ):
             self.caption("Figure", text=caption)
 
-    def caption(self, kind: str, node: Tag | None = None, text: str = ""):
+    def caption(self, kind: str, node: Tag | None = None, text: str = "") -> Paragraph:
         n = self.counters[kind] = self.counters.get(kind, 0) + 1
         p = self._para(self.st.get("caption"))
         self._run(p._p, f"{kind} ", _Fmt(bold=True))
@@ -753,12 +902,12 @@ class TemplateWriter:
         self._trim(p)
         return p
 
-    def _picture(self, p, img: Tag) -> None:
+    def _picture(self, p: Paragraph, img: Tag) -> None:
         from docx.image.exceptions import UnrecognizedImageError
 
-        src = img.get("src") or ""
-        alt = img.get("alt") or os.path.basename(src)
-        source = None
+        src = _attr(img, "src")
+        alt = _attr(img, "alt") or os.path.basename(src)
+        source: io.BytesIO | str | None = None
         if src.startswith("data:") and ";base64," in src:
             source = io.BytesIO(base64.b64decode(src.split(",", 1)[1]))
         elif src and os.path.isfile(src):
@@ -773,22 +922,29 @@ class TemplateWriter:
             self._run(p._p, f"[image: {alt}]", _Fmt(italic=True))
             return
         css = _css(img)
-        w_pt, h_pt = _length_pt(css.get("width") or img.get("width")), \
-            _length_pt(css.get("height") or img.get("height"))
-        w, h = shape.width, shape.height
+        w_pt, h_pt = (
+            _length_pt(css.get("width") or _attr(img, "width")),
+            _length_pt(css.get("height") or _attr(img, "height")),
+        )
+        w: int = shape.width
+        h: int = shape.height
         if w_pt and h_pt:
             w, h = Pt(w_pt), Pt(h_pt)
         elif w_pt:
             w, h = Pt(w_pt), int(h * Pt(w_pt) / w)
         elif h_pt:
             w, h = int(w * Pt(h_pt) / h), Pt(h_pt)
-        max_w = self.text_width - (Pt(_LIST_INDENT_PT * len(self.list_stack)) if self.list_stack else 0)
+        max_w = self.text_width - (
+            Pt(_LIST_INDENT_PT * len(self.list_stack)) if self.list_stack else 0
+        )
         scale = min(1.0, max_w / w, self.max_height / h) if w and h else 1.0
-        shape.width, shape.height = int(w * scale), int(h * scale)
+        shape.width, shape.height = Emu(int(w * scale)), Emu(int(h * scale))
 
     # ---- inline -----------------------------------------------------------
 
-    def inline(self, p, node, fmt: _Fmt, target=None) -> None:
+    def inline(
+        self, p: Paragraph, node: PageElement, fmt: _Fmt, target: BaseOxmlElement | None = None
+    ) -> None:
         target = p._p if target is None else target
         if isinstance(node, Comment):
             return
@@ -796,6 +952,8 @@ class TemplateWriter:
             text = re.sub(r"\s+", " ", str(node))
             if text:
                 self._run(target, text, fmt)
+            return
+        if not isinstance(node, Tag):  # pragma: no cover - children are tags or strings
             return
         name = node.name
         if name in ("strong", "b"):
@@ -823,11 +981,13 @@ class TemplateWriter:
         elif name == "img":
             self._picture(p, node)
             return
-        elif name == "input" and (node.get("type") or "").lower() == "checkbox":
-            self._run(target, "☒" if node.has_attr("checked") else "☐", fmt)  # label text brings its own space
+        elif name == "input" and _attr(node, "type").lower() == "checkbox":
+            self._run(
+                target, "☒" if node.has_attr("checked") else "☐", fmt
+            )  # label text brings its own space
             return
-        elif name == "a" and node.get("href"):
-            link = self._hyperlink(p, target, node["href"])
+        elif name == "a" and _attr(node, "href"):
+            link = self._hyperlink(p, target, _attr(node, "href"))
             if link is not None:
                 for child in node.children:
                     self.inline(p, child, fmt.with_(link=True), link)
@@ -835,10 +995,10 @@ class TemplateWriter:
         for child in node.children:
             self.inline(p, child, fmt, target)
 
-    def _run(self, target, text: str, fmt: _Fmt) -> None:
+    def _run(self, target: BaseOxmlElement, text: str, fmt: _Fmt) -> None:
         r = OxmlElement("w:r")
         rpr = OxmlElement("w:rPr")
-        rstyle = None
+        rstyle: BaseStyle | None = None
         if fmt.get("code"):
             rstyle = self.st.get("inline_code")
             if rstyle is None:
@@ -872,7 +1032,9 @@ class TemplateWriter:
         r.append(_text_el(text))
         target.append(r)
 
-    def _hyperlink(self, p, target, href: str):
+    def _hyperlink(
+        self, p: Paragraph, target: BaseOxmlElement, href: str
+    ) -> BaseOxmlElement | None:
         h = OxmlElement("w:hyperlink")
         if href.startswith("#"):
             name = self.bookmarks.get(href[1:])
@@ -885,7 +1047,7 @@ class TemplateWriter:
         target.append(h)
         return h
 
-    def _bookmark(self, p, name: str) -> None:
+    def _bookmark(self, p: Paragraph, name: str) -> None:
         self._bm_id += 1
         start = OxmlElement("w:bookmarkStart")
         start.set(qn("w:id"), str(self._bm_id))
@@ -895,8 +1057,8 @@ class TemplateWriter:
         p._p.append(start)
         p._p.append(end)
 
-    def _field(self, p, instr: str, result: str, bold: bool = False) -> None:
-        def run(child):
+    def _field(self, p: Paragraph, instr: str, result: str, bold: bool = False) -> None:
+        def run(child: BaseOxmlElement) -> None:
             r = OxmlElement("w:r")
             if bold:
                 rpr = OxmlElement("w:rPr")
@@ -925,53 +1087,66 @@ class TemplateWriter:
 
     # ---- footnotes --------------------------------------------------------
 
-    def _footnotes(self):
-        """The footnotes part's root element, created on first use."""
-        if self._fn_root is not None:
-            return self._fn_root
-        part = None
+    def _footnotes(self) -> tuple[BaseOxmlElement, StoryPart]:
+        """The footnotes root element and its part, created on first use."""
+        if self._fn_root is not None and self._fn_part is not None:
+            return self._fn_root, self._fn_part
+        part: StoryPart | None = None
         for rel in self.doc.part.rels.values():
             if rel.reltype == RT.FOOTNOTES and not rel.is_external:
-                part = rel.target_part
-                if not hasattr(part, "element"):  # loaded as an opaque blob part
-                    part = StoryPart(part.partname, part.content_type,
-                                     parse_xml(part.blob), part.package)
+                found = rel.target_part
+                if isinstance(found, StoryPart):
+                    part = found
+                else:  # loaded as an opaque blob part
+                    part = StoryPart(
+                        found.partname, found.content_type, parse_xml(found.blob), found.package
+                    )
                     rel._target = part
                 break
         if part is None:
-            xml = (f'<w:footnotes {nsdecls("w", "r")}>'
-                   '<w:footnote w:type="separator" w:id="-1"><w:p><w:pPr>'
-                   '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>'
-                   '</w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>'
-                   '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:pPr>'
-                   '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>'
-                   '</w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>'
-                   '</w:footnotes>')
-            part = StoryPart(PackURI("/word/footnotes.xml"), CT.WML_FOOTNOTES,
-                             parse_xml(xml), self.doc.part.package)
+            xml = (
+                f"<w:footnotes {nsdecls('w', 'r')}>"
+                '<w:footnote w:type="separator" w:id="-1"><w:p><w:pPr>'
+                '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>'
+                "</w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>"
+                '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:pPr>'
+                '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>'
+                "</w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"
+                "</w:footnotes>"
+            )
+            part = StoryPart(
+                PackURI("/word/footnotes.xml"),
+                CT.WML_FOOTNOTES,
+                parse_xml(xml),
+                self.doc.part.package,
+            )
             self.doc.part.relate_to(part, RT.FOOTNOTES)
             settings = self.doc.settings.element
             if settings.find(qn("w:footnotePr")) is None:
-                pr = parse_xml(f'<w:footnotePr {nsdecls("w")}><w:footnote w:id="-1"/>'
-                               '<w:footnote w:id="0"/></w:footnotePr>')
+                pr = parse_xml(
+                    f'<w:footnotePr {nsdecls("w")}><w:footnote w:id="-1"/>'
+                    '<w:footnote w:id="0"/></w:footnotePr>'
+                )
                 _settings_insert(settings, pr, _AFTER_UPDATE_FIELDS[2:])
-        self._fn_part, self._fn_root = part, part.element
-        ids = [int(f.get(qn("w:id"))) for f in self._fn_root.findall(qn("w:footnote"))]
+        root = part.element
+        self._fn_part, self._fn_root = part, root
+        ids = [int(f.get(qn("w:id"))) for f in root.findall(qn("w:footnote"))]
         self._fn_next = max(ids + [0]) + 1
-        return self._fn_root
+        return root, part
 
-    def _footnote_ref(self, p, sup: Tag, target) -> None:
+    def _footnote_ref(self, p: Paragraph, sup: Tag, target: BaseOxmlElement) -> None:
         a = sup.find("a")
-        src = self.footnote_src.get((a.get("href") or "")[1:]) if a is not None else None
+        href = _attr(a, "href") if isinstance(a, Tag) else ""
+        src = self.footnote_src.get(href[1:])
         if src is None:
             self._run(target, sup.get_text(), _Fmt(vert="superscript"))
             return
-        root = self._footnotes()
+        root, part = self._footnotes()
         text_style, ref_style = self.st.ensure_footnote_styles()
         fid = self._fn_next
         self._fn_next += 1
 
-        def ref_run(tag):
+        def ref_run(tag: str) -> BaseOxmlElement:
             r = OxmlElement("w:r")
             rpr = OxmlElement("w:rPr")
             rs = OxmlElement("w:rStyle")
@@ -987,11 +1162,11 @@ class TemplateWriter:
         fn = OxmlElement("w:footnote")
         fn.set(qn("w:id"), str(fid))
         root.append(fn)
-        parent = _PartParent(self._fn_part)
+        parent = _PartParent(part)
         tab = bool(len(text_style.paragraph_format.tab_stops))  # style lays out "1<tab>text"
         blocks = [c for c in src.children if isinstance(c, Tag)] or [src]
         for i, block in enumerate(blocks):
-            p_el = OxmlElement("w:p")
+            p_el = cast("CT_P", OxmlElement("w:p"))
             ppr = OxmlElement("w:pPr")
             ps = OxmlElement("w:pStyle")
             ps.set(qn("w:val"), text_style.style_id)
@@ -1014,7 +1189,7 @@ class TemplateWriter:
 # ------------------------------------------------------------------ entry
 
 
-def _body_has_content(body, upto=None) -> bool:
+def _body_has_content(body: BaseOxmlElement, upto: BaseOxmlElement | None = None) -> bool:
     for el in body:
         if el is upto:
             break
@@ -1025,8 +1200,13 @@ def _body_has_content(body, upto=None) -> bool:
     return False
 
 
-def to_docx(body: str, out_path, template, meta: dict | None = None,
-            styles: dict | None = None) -> None:
+def to_docx(
+    body: str,
+    out_path: str | os.PathLike[str],
+    template: str | os.PathLike[str],
+    meta: Mapping[str, object] | None = None,
+    styles: Mapping[str, str] | None = None,
+) -> None:
     """Write *body* (an HTML fragment) into a copy of *template* at *out_path*."""
     template = Path(template)
     if not template.is_file():
@@ -1036,13 +1216,20 @@ def to_docx(body: str, out_path, template, meta: dict | None = None,
     meta.setdefault("date", datetime.date.today().strftime("%B %Y"))
     missing = fill_placeholders(doc, meta)
     if missing:
-        log.warning("template: no value for %s (left blank; set with --meta KEY=VALUE)",
-                    ", ".join("{{%s}}" % m for m in missing))
+        log.warning(
+            "template: no value for %s (left blank; set with --meta KEY=VALUE)",
+            ", ".join("{{%s}}" % m for m in missing),
+        )
 
     body_el = doc.element.body
-    marker = next((p for p in body_el.iterchildren(qn("w:p"))
-                   if _CONTENT_ANCHOR.fullmatch("".join(t.text or "" for t in p.iter(qn("w:t"))))),
-                  None)
+    marker = next(
+        (
+            p
+            for p in body_el.iterchildren(qn("w:p"))
+            if _CONTENT_ANCHOR.fullmatch("".join(t.text or "" for t in p.iter(qn("w:t"))))
+        ),
+        None,
+    )
     before = set(body_el)  # holding the proxies keeps their identity stable
 
     writer = TemplateWriter(doc, _Styles(doc, styles))

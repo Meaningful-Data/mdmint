@@ -12,26 +12,22 @@ from __future__ import annotations
 
 import os
 import re
+from importlib.resources import files as _res_files
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from . import admonitions
 
-try:  # Python 3.9+: importlib.resources.files
-    from importlib.resources import files as _res_files
-except ImportError:  # pragma: no cover
-    _res_files = None
+if TYPE_CHECKING:
+    from docx.document import Document as DocxDocument
+    from docx.oxml.table import CT_TcPr
 
 _IMG_SRC = re.compile(r'(<img\b[^>]*?\ssrc=)(["\'])(.*?)\2', re.IGNORECASE)
 
 
 def load_css() -> str:
     """Return the bundled default stylesheet."""
-    if _res_files is not None:
-        return _res_files("mdmint.resources").joinpath("default.css").read_text(
-            encoding="utf-8"
-        )
-    here = Path(__file__).parent / "resources" / "default.css"  # pragma: no cover
-    return here.read_text(encoding="utf-8")
+    return _res_files("mdmint.resources").joinpath("default.css").read_text(encoding="utf-8")
 
 
 def wrap_html(body: str, title: str = "", css: str | None = None) -> str:
@@ -51,7 +47,7 @@ def wrap_html(body: str, title: str = "", css: str | None = None) -> str:
 # --------------------------------------------------------------------------- DOCX
 
 
-def _fit_images_to_page(document) -> None:
+def _fit_images_to_page(document: DocxDocument) -> None:
     """Scale down any inline image larger than the page's text area.
 
     ``htmldocx`` adds pictures at their native size, and python-docx assumes 72 DPI
@@ -59,10 +55,10 @@ def _fit_images_to_page(document) -> None:
     the margins. We shrink anything bigger than the printable area to fit, keeping
     aspect ratio and never upscaling — the DOCX counterpart of CSS ``max-width:100%``.
     """
-    section = document.sections[0]
-    max_w = section.page_width - section.left_margin - section.right_margin
-    max_h = section.page_height - section.top_margin - section.bottom_margin
-    if not max_w or not max_h:
+    s = document.sections[0]
+    max_w = (s.page_width or 0) - (s.left_margin or 0) - (s.right_margin or 0)
+    max_h = (s.page_height or 0) - (s.top_margin or 0) - (s.bottom_margin or 0)
+    if max_w <= 0 or max_h <= 0:
         return
     for shape in document.inline_shapes:
         w, h = shape.width, shape.height
@@ -74,7 +70,7 @@ def _fit_images_to_page(document) -> None:
             shape.height = int(h * scale)
 
 
-def _set_cell_shading(tcPr, fill: str) -> None:
+def _set_cell_shading(tcPr: CT_TcPr, fill: str) -> None:
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
 
@@ -85,14 +81,14 @@ def _set_cell_shading(tcPr, fill: str) -> None:
     tcPr.append(shd)
 
 
-def _set_cell_borders(tcPr, accent: str) -> None:
+def _set_cell_borders(tcPr: CT_TcPr, accent: str) -> None:
     """A thick accent rule on the left, hairline grey on the other three sides."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
 
     borders = OxmlElement("w:tcBorders")
     edges = {
-        "left": ("24", accent),   # 24 eighths = 3pt accent bar
+        "left": ("24", accent),  # 24 eighths = 3pt accent bar
         "top": ("4", "DDDDDD"),
         "bottom": ("4", "DDDDDD"),
         "right": ("4", "DDDDDD"),
@@ -107,7 +103,7 @@ def _set_cell_borders(tcPr, accent: str) -> None:
     tcPr.append(borders)
 
 
-def _style_admonitions(document) -> None:
+def _style_admonitions(document: DocxDocument) -> None:
     """Paint admonition callouts in a freshly built DOCX.
 
     htmldocx renders our admonitions as bare single-cell tables and discards the
@@ -157,8 +153,14 @@ def _flatten_loose_list_items(body: str) -> str:
     return str(soup)
 
 
-def to_docx(body: str, out_path: str | os.PathLike, *, template=None,
-            meta: dict | None = None, styles: dict | None = None) -> None:
+def to_docx(
+    body: str,
+    out_path: str | os.PathLike[str],
+    *,
+    template: str | os.PathLike[str] | None = None,
+    meta: dict[str, str] | None = None,
+    styles: dict[str, str] | None = None,
+) -> None:
     """Write *body* (an HTML fragment) to a .docx file.
 
     With a *template* (.docx/.dotx) the template-aware writer in
@@ -198,7 +200,7 @@ def _xhtml2pdf_link_callback(uri: str, rel: str) -> str:
 def _to_file_uris(body: str) -> str:
     """Convert absolute filesystem image paths to file:// URIs (for weasyprint)."""
 
-    def repl(m: re.Match) -> str:
+    def repl(m: re.Match[str]) -> str:
         prefix, quote, src = m.group(1), m.group(2), m.group(3)
         if os.path.isabs(src) and os.path.exists(src):
             src = Path(src).as_uri()
@@ -209,7 +211,7 @@ def _to_file_uris(body: str) -> str:
 
 def to_pdf(
     body: str,
-    out_path: str | os.PathLike,
+    out_path: str | os.PathLike[str],
     *,
     backend: str = "xhtml2pdf",
     title: str = "",

@@ -21,12 +21,18 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
 from . import render
+
+if TYPE_CHECKING:
+    import yaml
 
 log = logging.getLogger("mdmint")
 
@@ -40,11 +46,11 @@ _OPTION_KEYS = ("template", "section_style", "styles")
 
 @dataclass
 class NavEntry:
-    kind: str                   # "section" or "page"
+    kind: str  # "section" or "page"
     title: str | None
-    depth: int                  # number of enclosing sections
-    path: Path | None = None    # pages only (absolute)
-    appendix: bool = False      # inside an annex/appendix section
+    depth: int  # number of enclosing sections
+    path: Path | None = None  # pages only (absolute)
+    appendix: bool = False  # inside an annex/appendix section
 
 
 @dataclass
@@ -52,15 +58,15 @@ class Project:
     config_path: Path
     docs_dir: Path
     site_name: str
-    entries: list
-    meta: dict = field(default_factory=dict)
-    options: dict = field(default_factory=dict)
+    entries: list[NavEntry]
+    meta: dict[str, str] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------ config
 
 
-def _yaml_loader():
+def _yaml_loader() -> type[yaml.SafeLoader]:
     """A SafeLoader that tolerates mkdocs' custom tags instead of failing on them.
 
     mkdocs.yml routinely contains ``!!python/name:…`` (pymdownx fences) and
@@ -71,19 +77,19 @@ def _yaml_loader():
     class Loader(yaml.SafeLoader):
         pass
 
-    def plain(loader, _suffix, node):
+    def plain(loader: yaml.SafeLoader, _suffix: str, node: yaml.Node) -> Any:
         if isinstance(node, yaml.ScalarNode):
             return loader.construct_scalar(node)
         if isinstance(node, yaml.SequenceNode):
             return loader.construct_sequence(node)
-        return loader.construct_mapping(node)
+        return loader.construct_mapping(cast("yaml.MappingNode", node))
 
     Loader.add_multi_constructor("tag:yaml.org,2002:python/", lambda *a: None)
     Loader.add_multi_constructor("!", plain)
     return Loader
 
 
-def load(config_path) -> Project:
+def load(config_path: str | os.PathLike[str]) -> Project:
     """Read an mkdocs.yml and resolve its nav into an ordered list of entries."""
     import yaml
 
@@ -91,7 +97,8 @@ def load(config_path) -> Project:
     if not config_path.is_file():
         raise FileNotFoundError(f"mkdocs config not found: {config_path}")
     try:
-        cfg = yaml.load(config_path.read_text(encoding="utf-8"), Loader=_yaml_loader()) or {}
+        text = config_path.read_text(encoding="utf-8")
+        cfg = yaml.load(text, Loader=_yaml_loader()) or {}  # noqa: S506 (a SafeLoader)
     except yaml.YAMLError as exc:
         raise ValueError(f"{config_path}: invalid YAML — {exc}") from exc
     if not isinstance(cfg, dict):
@@ -119,15 +126,20 @@ def load(config_path) -> Project:
         meta["subtitle"] = str(cfg["site_description"])
     if cfg.get("site_author"):
         meta["author"] = str(cfg["site_author"])
-    meta.update({str(k).lower(): str(v) for k, v in extra.items()
-                 if k not in _OPTION_KEYS and v is not None})
+    meta.update(
+        {
+            str(k).lower(): str(v)
+            for k, v in extra.items()
+            if k not in _OPTION_KEYS and v is not None
+        }
+    )
     options = {k: extra[k] for k in _OPTION_KEYS if k in extra}
     if "template" in options:
         options["template"] = (config_path.parent / str(options["template"])).resolve()
     return Project(config_path, docs_dir, site_name, entries, meta, options)
 
 
-def _walk_nav(items, docs_dir: Path, depth: int, appendix: bool, out: list) -> None:
+def _walk_nav(items: Any, docs_dir: Path, depth: int, appendix: bool, out: list[NavEntry]) -> None:
     if isinstance(items, (str, dict)):
         items = [items]
     for item in items or []:
@@ -142,13 +154,20 @@ def _walk_nav(items, docs_dir: Path, depth: int, appendix: bool, out: list) -> N
                     start = len(out)
                     out.append(section)
                     _walk_nav(value, docs_dir, depth + 1, in_appendix, out)
-                    if not any(e.kind == "page" for e in out[start + 1:]):
+                    if not any(e.kind == "page" for e in out[start + 1 :]):
                         del out[start:]  # drop sections with nothing to show
                 elif isinstance(value, str):
                     _add_page(title, value, docs_dir, depth, appendix, out)
 
 
-def _add_page(title, ref: str, docs_dir: Path, depth, appendix, out) -> None:
+def _add_page(
+    title: str | None,
+    ref: str,
+    docs_dir: Path,
+    depth: int,
+    appendix: bool,
+    out: list[NavEntry],
+) -> None:
     if _URL_SCHEME.match(ref) or ref.startswith("//"):
         log.info("mkdocs: skipping external nav link %s", ref)
         return
@@ -164,9 +183,10 @@ def _add_page(title, ref: str, docs_dir: Path, depth, appendix, out) -> None:
     out.append(NavEntry("page", title, depth, path, appendix))
 
 
-def _walk_tree(directory: Path, depth: int, out: list) -> None:
-    """mkdocs' implicit nav: index/README first, then files and dirs by name."""
-    def key(p: Path):
+def _walk_tree(directory: Path, depth: int, out: list[NavEntry]) -> None:
+    """Implicit mkdocs nav: index/README first, then files and dirs by name."""
+
+    def key(p: Path) -> tuple[bool, str]:
         return (p.stem.lower() not in ("index", "readme"), p.name.lower())
 
     for child in sorted(directory.iterdir(), key=key):
@@ -177,7 +197,7 @@ def _walk_tree(directory: Path, depth: int, out: list) -> None:
             start = len(out)
             out.append(NavEntry("section", title, depth))
             _walk_tree(child, depth + 1, out)
-            if not any(e.kind == "page" for e in out[start + 1:]):
+            if not any(e.kind == "page" for e in out[start + 1 :]):
                 del out[start:]
         elif child.suffix.lower() in (".md", ".markdown"):
             out.append(NavEntry("page", None, depth, child.resolve()))
@@ -195,7 +215,9 @@ def _levels(entry: NavEntry, section_style: str) -> int:
     return max(0, entry.depth - 1)
 
 
-def assemble(project: Project, render_page, *, section_style: str = "part") -> str:
+def assemble(
+    project: Project, render_page: Callable[[Path], str], *, section_style: str = "part"
+) -> str:
     """Render every nav page with ``render_page(path) -> html`` and join them.
 
     Returns the combined HTML fragment (no TOC; the caller adds one if wanted).
@@ -206,22 +228,27 @@ def assemble(project: Project, render_page, *, section_style: str = "part") -> s
     # Pass 1: render pages, namespace their ids, fix up heading levels.
     prefixes: dict[Path, str] = {}
     first_ids: dict[Path, str] = {}
-    blocks: list[tuple[NavEntry, str]] = []
+    blocks: list[tuple[Path | None, str]] = []  # (page path, None for a section; html)
     for idx, entry in enumerate(project.entries):
         if entry.kind == "section":
             level = _levels(entry, section_style)
             cls = ' class="part"' if level == 0 else ""
             anchor = f"s{idx}-{render.slugify(entry.title or 'section')}"
             label = html.escape(entry.title or "")
-            blocks.append((entry, f'<h{max(level, 1)} id="{anchor}"{cls}>{label}</h{max(level, 1)}>\n'))
+            blocks.append(
+                (None, f'<h{max(level, 1)} id="{anchor}"{cls}>{label}</h{max(level, 1)}>\n')
+            )
             continue
 
+        path = entry.path
+        if path is None:  # pragma: no cover - every page entry has a path
+            continue
         prefix = f"p{idx}-"
-        prefixes.setdefault(entry.path, prefix)
-        body = render_page(entry.path)
+        prefixes.setdefault(path, prefix)
+        body = render_page(path)
         if not re.search(r"<h1\b", body):
             # No H1 of its own: use the nav title (or file name) as the page title.
-            title = entry.title or entry.path.stem.replace("-", " ").replace("_", " ").capitalize()
+            title = entry.title or path.stem.replace("-", " ").replace("_", " ").capitalize()
             body = f'<h1 id="{render.slugify(title)}">{html.escape(title)}</h1>\n' + body
         body = render.namespace_ids(body, prefix)
         offset = _levels(entry, section_style)
@@ -229,21 +256,22 @@ def assemble(project: Project, render_page, *, section_style: str = "part") -> s
             body = _mark_first_h1(body, "appendix")
         body = render.shift_headings(body, offset)
         heads = render.headings_from_html(body)
-        if heads and heads[0][2]:
-            first_ids.setdefault(entry.path, heads[0][2])
-        blocks.append((entry, body))
+        first_id = heads[0][2] if heads else None
+        if first_id:
+            first_ids.setdefault(path, first_id)
+        blocks.append((path, body))
 
     # Pass 2: rewrite links between pages now that every target id is known.
     parts = []
-    for entry, body in blocks:
-        if entry.kind == "page":
-            body = _rewrite_links(body, entry.path, prefixes, first_ids)
+    for page, body in blocks:
+        if page is not None:
+            body = _rewrite_links(body, page, prefixes, first_ids)
         parts.append(body)
     return "\n".join(parts)
 
 
 def _mark_first_h1(body: str, cls: str) -> str:
-    def repl(m):
+    def repl(m: re.Match[str]) -> str:
         attrs = m.group(1)
         if 'class="' in attrs:
             attrs = attrs.replace('class="', f'class="{cls} ', 1)
@@ -254,8 +282,10 @@ def _mark_first_h1(body: str, cls: str) -> str:
     return re.sub(r"<h1\b([^>]*)>", repl, body, count=1)
 
 
-def _rewrite_links(body: str, page: Path, prefixes: dict, first_ids: dict) -> str:
-    def repl(m: re.Match) -> str:
+def _rewrite_links(
+    body: str, page: Path, prefixes: dict[Path, str], first_ids: dict[Path, str]
+) -> str:
+    def repl(m: re.Match[str]) -> str:
         before, href, after, inner = m.groups()
         if not href or href.startswith("#") or _URL_SCHEME.match(href) or href.startswith("//"):
             return m.group(0)
@@ -266,8 +296,11 @@ def _rewrite_links(body: str, page: Path, prefixes: dict, first_ids: dict) -> st
         if target_path.suffix.lower() not in (".md", ".markdown"):
             return m.group(0)  # a relative link to some other file; leave it
         if target_path not in prefixes:
-            log.info("mkdocs: %s links to %s, which is not in the nav; keeping text only",
-                     page.name, target)
+            log.info(
+                "mkdocs: %s links to %s, which is not in the nav; keeping text only",
+                page.name,
+                target,
+            )
             return inner
         anchor = f"{prefixes[target_path]}{frag}" if frag else first_ids.get(target_path)
         if not anchor:

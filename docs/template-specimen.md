@@ -51,7 +51,7 @@ A second numbered list must restart at 1:
 
 ```python
 def greet(name: str) -> str:
-    return f"Hello, {name}!"   # one Code Block paragraph
+    return f"Hello, {name}!"  # one Code Block paragraph
 ```
 
 ## Callouts

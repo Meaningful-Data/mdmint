@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import mimetypes
 import os
 import re
 import urllib.request
@@ -37,9 +36,9 @@ _EXT_BY_TYPE = {
 
 
 def _download(url: str, work_dir: Path) -> str | None:
-    digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "mdmint"})
+        req = urllib.request.Request(url, headers={"User-Agent": "mdmint"})  # noqa: S310
         with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (user-provided URL)
             data = resp.read()
             ctype = resp.headers.get_content_type()
@@ -76,7 +75,7 @@ def _resolve_one(src: str, base_dir: Path, work_dir: Path) -> str:
 def resolve_images(html_body: str, base_dir: Path, work_dir: Path) -> str:
     """Rewrite every ``<img src>`` in *html_body* to an absolute local path."""
 
-    def repl(m: re.Match) -> str:
+    def repl(m: re.Match[str]) -> str:
         prefix, quote, src = m.group(1), m.group(2), m.group(3)
         resolved = _resolve_one(src.strip(), base_dir, work_dir)
         # Keep the original quote style; the path itself contains no quote chars.

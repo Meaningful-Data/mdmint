@@ -16,10 +16,12 @@ import shutil
 import struct
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 log = logging.getLogger("mdmint")
 
-_MMDC_PATH = None  # cached result of the PATH lookup (False once we know it's absent)
+# Cached result of the PATH lookup (False once we know it's absent).
+_MMDC_PATH: str | Literal[False] | None = None
 _WARNED = False
 
 # mmdc emits PNGs at CSS-pixel dimensions; place them on the page treating those
@@ -105,7 +107,7 @@ def render(source: str, work_dir: Path) -> str:
         )
         return _codeblock(source)
 
-    digest = hashlib.sha1(source.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(source.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     out_path = work_dir / f"mermaid-{digest}.png"
 
     if not out_path.exists():
@@ -113,12 +115,15 @@ def render(source: str, work_dir: Path) -> str:
         in_path.write_text(source, encoding="utf-8")
         cmd = [
             mmdc,
-            "-i", str(in_path),
-            "-o", str(out_path),
-            "-b", "transparent",
+            "-i",
+            str(in_path),
+            "-o",
+            str(out_path),
+            "-b",
+            "transparent",
         ]
         try:
-            subprocess.run(
+            subprocess.run(  # noqa: S603 - argv is the mmdc path and our own temp files
                 cmd,
                 check=True,
                 stdout=subprocess.PIPE,
