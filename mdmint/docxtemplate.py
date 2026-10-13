@@ -35,7 +35,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.opc.constants import CONTENT_TYPE as CT
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.opc.packuri import PackURI
@@ -180,7 +180,7 @@ def fill_placeholders(doc, meta: dict) -> list:
 
     for root in _story_elements(doc):
         for p in root.iter(qn("w:p")):
-            texts = [t for t in p.iter(qn("w:t"))]
+            texts = list(p.iter(qn("w:t")))
             if not texts or "{{" not in "".join(t.text or "" for t in texts):
                 continue
             for t in texts:  # common case: each placeholder sits in one run
@@ -247,7 +247,7 @@ class _Styles:
         for s in doc.styles:
             try:
                 self.by_name.setdefault(s.name.lower(), s)
-            except Exception:  # pragma: no cover - malformed style entries
+            except Exception:  # noqa: S112  # pragma: no cover - malformed style entries
                 continue
         self.overrides = {k: v for k, v in (overrides or {}).items() if v}
         self._cache: dict[str, object] = {}

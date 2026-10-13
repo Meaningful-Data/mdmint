@@ -89,7 +89,8 @@ def test_shift_and_namespace_helpers():
     assert "<h3" in render.shift_headings(body, 2)
     assert "<h6" in render.shift_headings(body, 2)  # capped
     ns = render.namespace_ids(body, "p1-")
-    assert 'id="p1-a"' in ns and 'href="#p1-a"' in ns
+    assert 'id="p1-a"' in ns
+    assert 'href="#p1-a"' in ns
 
 
 # ------------------------------------------------------------------ mkdocs
@@ -119,8 +120,10 @@ def test_mkdocs_assemble_part_style(project, tmp_path):
     assert '<h2 id="p4-chapter-b">Chapter B</h2>' in html  # its page is demoted
     assert '<h1 id="p6-extra" class="appendix">Extra</h1>' in html  # nav title + annex
     assert 'href="#p4-b-detail"' in html  # cross-page link rewritten
-    assert "hidden.md" not in html and "hidden" in html  # out-of-nav link unwrapped
-    assert 'id="p2-fn1"' in html and 'id="p4-fn1"' in html  # footnotes kept apart
+    assert "hidden.md" not in html  # out-of-nav link unwrapped...
+    assert "hidden" in html  # ...but its text is kept
+    assert 'id="p2-fn1"' in html  # footnotes kept apart
+    assert 'id="p4-fn1"' in html
 
 
 def test_mkdocs_assemble_heading_style(project, tmp_path):
@@ -135,7 +138,8 @@ def test_mkdocs_without_nav_walks_tree(project):
     project.write_text("site_name: Tree\n")
     titles = [(e.kind, e.title or e.path.name) for e in mkdocs.load(project).entries]
     assert titles[0] == ("page", "index.md")
-    assert ("section", "One") in titles and ("section", "Annex") in titles
+    assert ("section", "One") in titles
+    assert ("section", "Annex") in titles
 
 
 def test_mkdocs_bad_config(tmp_path):
@@ -173,13 +177,15 @@ def test_template_docx_from_mkdocs(project, tmp_path, caplog):
     body = doc.element.body
     anchors = {h.get(qn("w:anchor")) for h in body.iter(qn("w:hyperlink"))}
     marks = {b.get(qn("w:name")) for b in body.iter(qn("w:bookmarkStart"))}
-    assert anchors and anchors <= marks
+    assert anchors
+    assert anchors <= marks
 
     # Real Word footnotes, one per reference.
     with zipfile.ZipFile(out[0]) as z:
         assert "word/footnotes.xml" in z.namelist()
         fn_xml = z.read("word/footnotes.xml").decode()
-    assert "The footnote." in fn_xml and "Other note." in fn_xml
+    assert "The footnote." in fn_xml
+    assert "Other note." in fn_xml
     assert len(list(body.iter(qn("w:footnoteReference")))) == 2
 
 
@@ -199,7 +205,10 @@ def test_template_styles_lists_code_tables(tmp_path):
     by_text = {p.text: p for p in paras}
     one, two, nested = by_text["one"], by_text["two"], by_text["nested"]
     assert one.style.name == "List Number"
-    num = lambda p: p._p.pPr.numPr
+
+    def num(p):
+        return p._p.pPr.numPr
+
     assert num(one).numId.val == num(two).numId.val
     # Stock Word template: single-level numbering, so depth comes from the style.
     assert nested.style.name == "List Bullet 2"

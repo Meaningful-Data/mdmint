@@ -64,12 +64,12 @@ def render(expr: str, block: bool, work_dir: Path) -> str:
     if key in _cache:
         return _cache[key]
 
-    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     out_path = work_dir / f"math-{digest}.png"
 
     try:
-        from matplotlib.figure import Figure
         from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
 
         fig = Figure(figsize=(0.1, 0.1))
         FigureCanvasAgg(fig)

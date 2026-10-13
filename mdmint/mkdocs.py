@@ -91,7 +91,8 @@ def load(config_path) -> Project:
     if not config_path.is_file():
         raise FileNotFoundError(f"mkdocs config not found: {config_path}")
     try:
-        cfg = yaml.load(config_path.read_text(encoding="utf-8"), Loader=_yaml_loader()) or {}
+        text = config_path.read_text(encoding="utf-8")
+        cfg = yaml.load(text, Loader=_yaml_loader()) or {}  # noqa: S506 (a SafeLoader)
     except yaml.YAMLError as exc:
         raise ValueError(f"{config_path}: invalid YAML — {exc}") from exc
     if not isinstance(cfg, dict):
@@ -170,7 +171,7 @@ def _add_page(title, ref: str, docs_dir: Path, depth, appendix, out) -> None:
 
 
 def _walk_tree(directory: Path, depth: int, out: list) -> None:
-    """mkdocs' implicit nav: index/README first, then files and dirs by name."""
+    """Implicit mkdocs nav: index/README first, then files and dirs by name."""
 
     def key(p: Path):
         return (p.stem.lower() not in ("index", "readme"), p.name.lower())

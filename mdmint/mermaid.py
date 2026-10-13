@@ -105,7 +105,7 @@ def render(source: str, work_dir: Path) -> str:
         )
         return _codeblock(source)
 
-    digest = hashlib.sha1(source.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(source.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     out_path = work_dir / f"mermaid-{digest}.png"
 
     if not out_path.exists():
@@ -121,7 +121,7 @@ def render(source: str, work_dir: Path) -> str:
             "transparent",
         ]
         try:
-            subprocess.run(
+            subprocess.run(  # noqa: S603 - argv is the mmdc path and our own temp files
                 cmd,
                 check=True,
                 stdout=subprocess.PIPE,

@@ -80,7 +80,8 @@ def test_docx_admonition_shaded_real_table_untouched(tmp_path):
     assert cell_fill(admon[0]) == bg.lstrip("#").upper()
 
     real = [t for t in doc.tables if len(t.columns) == 2]
-    assert real and cell_fill(real[0]) is None  # ordinary table left unstyled
+    assert real
+    assert cell_fill(real[0]) is None  # ordinary table left unstyled
 
 
 def test_docx_loose_list_marker_stays_with_text(tmp_path):
@@ -164,7 +165,8 @@ def test_convert_single_both_formats(tmp_path):
     written = convert([SAMPLE], formats=["pdf", "docx"], output=out)
     assert len(written) == 2
     for p in written:
-        assert p.exists() and p.stat().st_size > 0
+        assert p.exists()
+        assert p.stat().st_size > 0
     assert (out / "sample.pdf").exists()
     assert (out / "sample.docx").exists()
 
@@ -201,12 +203,13 @@ def test_merge_toc_namespaces_duplicate_anchors(tmp_path):
     b.write_text("# Beta\n\n## Intro\n")
     conv = MarkdownConverter(["pdf"], merge=True, toc=True)
     rendered = [(p, *conv._render_body(p, tmp_path)) for p in (a, b)]
-    parts, headings = [], []
+    headings = []
     for i, (_, body, heads) in enumerate(rendered):
         body, heads = render.prefix_anchors(body, heads, f"f{i}-")
         headings.extend(heads)
     toc = render.build_toc(headings)
-    assert 'href="#f0-intro"' in toc and 'href="#f1-intro"' in toc
+    assert 'href="#f0-intro"' in toc
+    assert 'href="#f1-intro"' in toc
 
 
 def test_convert_merge_single_file(tmp_path):
@@ -217,7 +220,8 @@ def test_convert_merge_single_file(tmp_path):
     out = tmp_path / "book.pdf"
     written = convert([a, b], formats=["pdf"], output=out, merge=True)
     assert len(written) == 1
-    assert written[0] == out and out.exists()
+    assert written[0] == out
+    assert out.exists()
 
 
 def test_docx_oversized_image_scaled_to_fit(tmp_path):
@@ -252,7 +256,7 @@ def test_docx_embeds_images(tmp_path):
 
 
 def test_invalid_format_rejected():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unknown format"):
         MarkdownConverter(["txt"])
 
 
