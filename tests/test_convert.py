@@ -1,13 +1,13 @@
-"""Tests for mdup: rendering, fallbacks, and end-to-end conversion."""
+"""Tests for mdmint: rendering, fallbacks, and end-to-end conversion."""
 
 import zipfile
 from pathlib import Path
 
 import pytest
 
-from mdup import convert, render
-from mdup.cli import main
-from mdup.core import MarkdownConverter
+from mdmint import convert, render
+from mdmint.cli import main
+from mdmint.core import MarkdownConverter
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAMPLE = FIXTURES / "sample.md"
@@ -35,7 +35,7 @@ def test_toc_marker_replaced(tmp_path):
 
 def test_admonition_renders_as_styled_table(tmp_path):
     """`!!! warning` becomes a single-cell table coloured per type (for PDF)."""
-    from mdup import admonitions
+    from mdmint import admonitions
 
     md = '!!! warning "Be careful"\n    Body text.\n'
     html = render.render_body(md, work_dir=tmp_path)
@@ -48,7 +48,7 @@ def test_admonition_renders_as_styled_table(tmp_path):
 
 def test_admonition_alias_and_default(tmp_path):
     """Aliases resolve to a canonical type; unknown tags fall back to `note`."""
-    from mdup import admonitions
+    from mdmint import admonitions
 
     assert admonitions.resolve("caution") == "warning"
     assert admonitions.resolve("totally-made-up") == "note"
@@ -62,7 +62,7 @@ def test_docx_admonition_shaded_real_table_untouched(tmp_path):
     from docx import Document
     from docx.oxml.ns import qn
 
-    from mdup import admonitions
+    from mdmint import admonitions
 
     md = (
         '!!! danger "Stop"\n    Careful here.\n\n'
@@ -115,8 +115,8 @@ def _md_file(tmp_path, text, name="a.md"):
 # ----------------------------------------------------------------- fallbacks
 
 def test_mermaid_fallback_when_no_renderer(tmp_path, monkeypatch):
-    monkeypatch.setattr("mdup.mermaid._MMDC_PATH", False)
-    monkeypatch.setattr("mdup.mermaid._WARNED", False)
+    monkeypatch.setattr("mdmint.mermaid._MMDC_PATH", False)
+    monkeypatch.setattr("mdmint.mermaid._WARNED", False)
     md = "```mermaid\nflowchart LR\n A-->B\n```\n"
     html = render.render_body(md, work_dir=tmp_path)
     assert 'class="mermaid"' in html               # styled code block, not an image
@@ -130,7 +130,7 @@ def _png_header(width: int, height: int) -> bytes:
 
 
 def test_mermaid_wide_image_capped_to_page_width(tmp_path):
-    from mdup import mermaid
+    from mdmint import mermaid
 
     wide = tmp_path / "wide.png"
     wide.write_bytes(_png_header(2000, 500))   # far wider than the page
@@ -140,7 +140,7 @@ def test_mermaid_wide_image_capped_to_page_width(tmp_path):
 
 
 def test_mermaid_small_image_not_upscaled(tmp_path):
-    from mdup import mermaid
+    from mdmint import mermaid
 
     small = tmp_path / "small.png"
     small.write_bytes(_png_header(96, 48))     # 96px @96dpi -> 72pt, well under the page
@@ -149,9 +149,9 @@ def test_mermaid_small_image_not_upscaled(tmp_path):
 
 
 def test_math_fallback_when_no_matplotlib(tmp_path, monkeypatch):
-    monkeypatch.setattr("mdup.mathrender._MATPLOTLIB", False)
-    monkeypatch.setattr("mdup.mathrender._WARNED", False)
-    monkeypatch.setattr("mdup.mathrender._cache", {})
+    monkeypatch.setattr("mdmint.mathrender._MATPLOTLIB", False)
+    monkeypatch.setattr("mdmint.mathrender._WARNED", False)
+    monkeypatch.setattr("mdmint.mathrender._cache", {})
     html = render.render_body("Energy $E=mc^2$ here.", work_dir=tmp_path)
     assert "math-inline-fallback" in html          # literal text, not an image
     assert "E=mc^2" in html
@@ -219,7 +219,7 @@ def test_docx_oversized_image_scaled_to_fit(tmp_path):
     from docx.shared import Inches
     from PIL import Image
 
-    from mdup.backends import _fit_images_to_page
+    from mdmint.backends import _fit_images_to_page
 
     img = tmp_path / "wide.png"
     Image.new("RGB", (2000, 300), "white").save(img)

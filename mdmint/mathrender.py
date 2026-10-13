@@ -15,7 +15,7 @@ import logging
 import os
 from pathlib import Path
 
-log = logging.getLogger("mdup")
+log = logging.getLogger("mdmint")
 
 _DPI = 200  # render resolution; combined with pixel size to derive on-page pt size
 _MATPLOTLIB = None  # None = not probed yet, False = unavailable, module otherwise
@@ -40,7 +40,7 @@ def _warn_missing() -> None:
     if not _WARNED:
         log.warning(
             "math: matplotlib not installed; rendering math as literal text. "
-            "Install with 'pip install mdup[math]' for rendered equations."
+            "Install with 'pip install mdmint[math]' for rendered equations."
         )
         _WARNED = True
 

@@ -1,13 +1,13 @@
 ---
-title: mdup sample document
-author: mdup
+title: mdmint sample document
+author: mdmint
 ---
 
-# mdup Feature Sample
+# mdmint Feature Sample
 
 [TOC]
 
-This document exercises the Markdown features mdup supports. It has **bold**,
+This document exercises the Markdown features mdmint supports. It has **bold**,
 *italic*, ~~strikethrough~~, `inline code`, and a [link](https://example.com).
 
 ## Lists
@@ -53,7 +53,7 @@ def greet(name: str) -> str:
 
 ## Image
 
-![mdup logo](logo.png)
+![mdmint logo](logo.png)
 
 ## Math
 
@@ -67,7 +67,7 @@ $$
 
 ```mermaid
 flowchart LR
-    A[Markdown] --> B{mdup}
+    A[Markdown] --> B{mdmint}
     B --> C[DOCX]
     B --> D[PDF]
 ```

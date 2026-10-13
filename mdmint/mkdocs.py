@@ -28,13 +28,13 @@ from urllib.parse import unquote
 
 from . import render
 
-log = logging.getLogger("mdup")
+log = logging.getLogger("mdmint")
 
 SECTION_STYLES = ("part", "heading")
 _APPENDIX_TITLE = re.compile(r"^\s*(annex(es)?|appendix|appendices)\b", re.IGNORECASE)
 _ANCHOR = re.compile(r'<a\b([^>]*?)\bhref="([^"]*)"([^>]*)>(.*?)</a>', re.DOTALL)
 _URL_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
-# Keys of ``extra.mdup`` that configure mdup rather than fill template placeholders.
+# Keys of ``extra.mdmint`` that configure mdmint rather than fill template placeholders.
 _OPTION_KEYS = ("template", "section_style", "styles")
 
 
@@ -111,7 +111,7 @@ def load(config_path) -> Project:
         raise ValueError(f"{config_path}: nav contains no Markdown pages")
 
     site_name = str(cfg.get("site_name") or config_path.parent.name)
-    extra = (cfg.get("extra") or {}).get("mdup") or {}
+    extra = (cfg.get("extra") or {}).get("mdmint") or {}
     if not isinstance(extra, dict):
         extra = {}
     meta = {"title": site_name}

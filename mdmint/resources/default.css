@@ -114,7 +114,7 @@ table.admonition td.admonition-cell {
 .admonition-title { margin-top: 0; }
 
 /* Page break inserted between merged documents */
-.mdup-page-break { page-break-before: always; }
+.mdmint-page-break { page-break-before: always; }
 
 /* Part dividers (top-level mkdocs nav sections, or `# Title {.part}`) and
    appendix chapters (`{.appendix}` / pages under an "Annexes" section). */

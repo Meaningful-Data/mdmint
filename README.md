@@ -1,4 +1,4 @@
-# mdup
+# mdmint
 
 Export Markdown files to **DOCX** and/or **PDF** — pure-Python, cross-platform,
 minimal dependencies.
@@ -11,7 +11,7 @@ the base install stays small and works everywhere.
 ## Install
 
 ```bash
-pip install mdup
+pip install mdmint
 ```
 
 The core install is pure-Python (no native libraries):
@@ -20,9 +20,9 @@ The core install is pure-Python (no native libraries):
 Optional extras:
 
 ```bash
-pip install "mdup[math]"        # render LaTeX math (adds matplotlib)
-pip install "mdup[weasyprint]"  # higher-fidelity PDF (needs native Pango/Cairo)
-pip install "mdup[all]"         # both of the above
+pip install "mdmint[math]"        # render LaTeX math (adds matplotlib)
+pip install "mdmint[weasyprint]"  # higher-fidelity PDF (needs native Pango/Cairo)
+pip install "mdmint[all]"         # both of the above
 ```
 
 For **mermaid diagrams**, install the mermaid CLI separately (optional):
@@ -31,12 +31,12 @@ For **mermaid diagrams**, install the mermaid CLI separately (optional):
 ## Usage
 
 ```bash
-mdup notes.md                          # -> notes.pdf
-mdup notes.md -f docx,pdf -o out/      # both formats into ./out/
-mdup a.md b.md -f docx                 # -> a.docx and b.docx (one per input)
-mdup a.md b.md --merge -f pdf -o book.pdf   # one merged PDF
-mdup report.md --toc -f pdf            # insert a table of contents
-mdup report.md -f pdf --pdf-backend weasyprint
+mdmint notes.md                          # -> notes.pdf
+mdmint notes.md -f docx,pdf -o out/      # both formats into ./out/
+mdmint a.md b.md -f docx                 # -> a.docx and b.docx (one per input)
+mdmint a.md b.md --merge -f pdf -o book.pdf   # one merged PDF
+mdmint report.md --toc -f pdf            # insert a table of contents
+mdmint report.md -f pdf --pdf-backend weasyprint
 ```
 
 | Option | Meaning |
@@ -54,12 +54,12 @@ mdup report.md -f pdf --pdf-backend weasyprint
 | `--meta KEY=VALUE` | Value for a template `{{KEY}}` placeholder (repeatable). |
 | `--style ROLE=STYLE` | Use a specific template style for a role (repeatable). |
 
-Also runnable as `python -m mdup ...`.
+Also runnable as `python -m mdmint ...`.
 
 ### From an mkdocs site
 
 ```bash
-mdup --mkdocs mkdocs.yml -f docx,pdf -o out/     # -> out/<site_name>.docx/.pdf
+mdmint --mkdocs mkdocs.yml -f docx,pdf -o out/     # -> out/<site_name>.docx/.pdf
 ```
 
 The `nav` decides which pages go in and in what order (without a `nav`, the
@@ -79,7 +79,7 @@ Settings can live in the mkdocs.yml itself (command-line options win):
 
 ```yaml
 extra:
-  mdup:
+  mdmint:
     template: templates/brand.docx     # relative to mkdocs.yml
     section_style: part
     status: Final                      # any other key fills {{STATUS}} etc.
@@ -90,7 +90,7 @@ extra:
 ### Branded DOCX with a Word template
 
 ```bash
-mdup report.md -f docx --template brand.docx --meta status=Draft
+mdmint report.md -f docx --template brand.docx --meta status=Draft
 ```
 
 With `--template`, DOCX output is written *into a copy of the template*: its
@@ -98,7 +98,7 @@ cover, contents page, headers/footers, page setup and styles are kept, and the
 content is appended at the end (or where a paragraph reading `{{CONTENT}}` sits).
 Text like `{{TITLE}}`, `{{AUTHOR}}`, `{{DATE}}` anywhere in the body, headers or
 footers is filled from, in increasing priority: mkdocs.yml (`site_name` → title,
-`site_description` → subtitle, `site_author` → author, `extra.mdup`), the Markdown
+`site_description` → subtitle, `site_author` → author, `extra.mdmint`), the Markdown
 front matter, and `--meta`. `date` defaults to the current month; placeholders
 left without a value are blanked with a warning.
 
@@ -127,7 +127,7 @@ Headings are bookmarked so in-document links work, and the template's TOC field
 ### Library API
 
 ```python
-from mdup import convert
+from mdmint import convert
 
 convert(["report.md"], formats=["pdf", "docx"], output="out/")
 convert(["a.md", "b.md"], formats=["pdf"], output="book.pdf", merge=True)
@@ -149,7 +149,7 @@ against the source file; remote URLs downloaded), LaTeX math, and mermaid diagra
   LaTeX required) rendered to images. Full LaTeX environments (e.g. `align`) are not
   supported. Without matplotlib, math is shown as literal source with a warning.
 - **Mermaid** requires the `mmdc` CLI. Without it, diagrams are shown as styled code
-  blocks with a warning. A snap-installed `mmdc` is supported (mdup places its
+  blocks with a warning. A snap-installed `mmdc` is supported (mdmint places its
   scratch files where snap confinement can read them).
 - **Admonitions** render as a colour-coded callout box (tinted background + accent
   bar + coloured title) in both PDF and DOCX. Type icons are intentionally omitted:

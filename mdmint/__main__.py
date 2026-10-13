@@ -1,4 +1,4 @@
-"""Enable ``python -m mdup``."""
+"""Enable ``python -m mdmint``."""
 
 from .cli import main
 

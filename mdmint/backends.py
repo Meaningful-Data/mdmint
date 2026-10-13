@@ -27,7 +27,7 @@ _IMG_SRC = re.compile(r'(<img\b[^>]*?\ssrc=)(["\'])(.*?)\2', re.IGNORECASE)
 def load_css() -> str:
     """Return the bundled default stylesheet."""
     if _res_files is not None:
-        return _res_files("mdup.resources").joinpath("default.css").read_text(
+        return _res_files("mdmint.resources").joinpath("default.css").read_text(
             encoding="utf-8"
         )
     here = Path(__file__).parent / "resources" / "default.css"  # pragma: no cover
@@ -112,7 +112,7 @@ def _style_admonitions(document) -> None:
 
     htmldocx renders our admonitions as bare single-cell tables and discards the
     CSS that colours them in PDF. We recognise them after the fact — a 1x1 table
-    whose title run carries one of our accent colours (see :mod:`mdup.admonitions`)
+    whose title run carries one of our accent colours (see :mod:`mdmint.admonitions`)
     — and add the matching cell shading and left accent bar. This is the DOCX twin
     of the inline CSS emitted by ``render._admonition_open``; anything that is not
     an admonition (real user tables) is left untouched.
@@ -162,7 +162,7 @@ def to_docx(body: str, out_path: str | os.PathLike, *, template=None,
     """Write *body* (an HTML fragment) to a .docx file.
 
     With a *template* (.docx/.dotx) the template-aware writer in
-    :mod:`mdup.docxtemplate` is used instead of htmldocx, so the output carries the
+    :mod:`mdmint.docxtemplate` is used instead of htmldocx, so the output carries the
     template's cover, headers/footers and named styles (*meta* fills its
     ``{{PLACEHOLDERS}}``, *styles* overrides role → style-name choices).
     """

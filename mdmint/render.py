@@ -2,7 +2,7 @@
 
 This is the single intermediate representation feeding both the DOCX and PDF
 writers. Mermaid fences and LaTeX math are routed through the optional renderers
-(:mod:`mdup.mermaid`, :mod:`mdup.mathrender`) via custom render rules; the work
+(:mod:`mdmint.mermaid`, :mod:`mdmint.mathrender`) via custom render rules; the work
 directory they write images into is threaded through markdown-it's ``env``.
 """
 

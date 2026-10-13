@@ -1,8 +1,8 @@
 """Shared colour table for Markdown admonitions (``!!!`` / ``???`` callouts).
 
 Both writers need to agree on what a "warning" looks like, but they style it
-through completely different mechanisms: :mod:`mdup.render` emits inline CSS that
-the PDF backend honours, while :mod:`mdup.backends` paints the DOCX cell with
+through completely different mechanisms: :mod:`mdmint.render` emits inline CSS that
+the PDF backend honours, while :mod:`mdmint.backends` paints the DOCX cell with
 low-level OOXML after the fact. Keeping the palette here means the two paths can
 never drift, and adding a type is a one-line change.
 
