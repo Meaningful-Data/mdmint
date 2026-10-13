@@ -39,7 +39,6 @@ weasyprint = ["weasyprint>=60"]
 # Static rendering of LaTeX math (no system LaTeX needed).
 math = ["matplotlib>=3.5"]
 all = ["weasyprint>=60", "matplotlib>=3.5"]
-dev = ["pytest>=7"]
 
 [project.scripts]
 mdmint = "mdmint.cli:main"
@@ -52,3 +51,58 @@ packages = ["mdmint"]
 
 [tool.setuptools.package-data]
 mdmint = ["resources/*.css"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+
+# Dependency groups follow PEP 735 (https://peps.python.org/pep-0735/).
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1,<10.0",
+    "pytest-cov>=7.1.0,<8.0",
+    "coverage>=7.14.0,<8.0",
+    "pytest-xdist>=3.8.0,<4.0",
+    "mypy>=1.18,<2.0",
+    "ruff>=0.15.12,<1.0.0",
+    "types-PyYAML>=6.0.12,<7.0",
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+lint.mccabe.max-complexity = 20
+lint.select = [
+    "B", "B9", "C", "C4", "D", "E", "F", "I", "PT", "S", "SIM", "W"
+]
+lint.ignore = ["B023", "B028", "B904", "C403", "D100", "D101", "D102", "D103", "D104", "D105",
+    "D107", "D200", "D201", "D202", "D203", "D205", "D209", "D212", "D213", "D301",
+    "D400", "D401", "D404", "D411", "D413", "D415", "D419", "E203", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PT006", "PT012", "PT013", "E501", "W605"]
+
+[tool.mypy]
+files = "mdmint"
+disallow_untyped_defs = true
+disallow_untyped_calls = true
+ignore_errors = false
+no_implicit_optional = true
+show_column_numbers = true
+strict_equality = true
+strict_optional = true
+strict = true
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-expr",
+    "truthy-bool",
+]
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+# Optional or third-party libraries that ship no type information.
+module = ["htmldocx.*", "weasyprint.*", "xhtml2pdf.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+pythonpath = ["."]
