@@ -14,5 +14,5 @@ Public API
 
 from .core import MarkdownConverter, convert, convert_mkdocs
 
-__version__ = "0.2.0rc1"
+__version__ = "0.2.0"
 __all__ = ["MarkdownConverter", "convert", "convert_mkdocs", "__version__"]
